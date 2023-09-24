@@ -11,7 +11,7 @@
 #include <cuda_runtime.h>
 #include <cuda_device_runtime_api.h>
 
-#include <nvToolsExt.h>
+#include <nvtx3/nvToolsExt.h>
 
 static const unsigned int MB_TO_TRANSFER = 16;
 

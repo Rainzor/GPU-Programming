@@ -4,8 +4,7 @@
 #include <cuda_runtime.h>
 #include <device_launch_parameters.h>
 
-// NVTX Dir: C:\Program Files\NVIDIA GPU Computing Toolkit\nvToolsExt
-#include <nvToolsExt.h>
+#include <nvtx3/nvToolsExt.h>
 
 #include <cmath>
 #include <cstdio>

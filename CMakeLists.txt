@@ -34,17 +34,6 @@ FIND_LIBRARY(CUDA_nvToolsExt_LIBRARY
   )
 
 IF(WIN32)
-    FIND_PATH(
-        CUDA_nvToolsExt_INCLUDE
-        NAMES "nvToolsExt.h"
-        PATHS $ENV{NVTOOLSEXT_PATH}
-        PATH_SUFFIXES "include"
-        DOC "NV Tools Ext Include Directory"
-        NO_DEFAULT_PATH
-    )
-
-    INCLUDE_DIRECTORIES(${CUDA_nvToolsExt_INCLUDE})
-
     # Set up include and lib paths
     set(CUDA_HOST_COMPILER ${CMAKE_CXX_COMPILER} CACHE FILEPATH "Host side compiler used by NVCC" FORCE)
 ENDIF(WIN32)
@@ -68,16 +57,6 @@ SET(EXECUTABLES transpose reduction reductionrecursive)
 FILE(GLOB headers source/*.h source/*.hpp)
 FOREACH(exe ${EXECUTABLES})
     CUDA_ADD_EXECUTABLE(${exe} source/${exe}.cu ${headers})
-    TARGET_LINK_LIBRARIES(${exe} ${CUDA_nvToolsExt_LIBRARY})
-
-    # Copy nvToolsExt DLL as it is not in PATH
-    IF(WIN32)
-        ADD_CUSTOM_COMMAND(TARGET ${exe}
-            POST_BUILD
-            COMMAND ${CMAKE_COMMAND} -E copy_if_different "\"$ENV{NVTOOLSEXT_PATH}bin\\x64\\nvToolsExt64_1.dll\"" $<TARGET_FILE_DIR:${exe}>
-            COMMENT "Copying nvToolsExt DLL"
-        )
-    ENDIF(WIN32)
 ENDFOREACH()
 ########################################
 
