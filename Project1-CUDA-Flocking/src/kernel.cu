@@ -36,7 +36,7 @@ void checkCUDAError(const char *msg, int line = -1) {
 * Configuration *
 *****************/
 
-/*! Block size used for CUDA kernel launch. */
+//! Block size used for CUDA kernel launch. 
 #define blockSize 128
 
 // LOOK-1.2 Parameters for the boids algorithm.
@@ -51,7 +51,7 @@ void checkCUDAError(const char *msg, int line = -1) {
 
 #define maxSpeed 1.0f
 
-/*! Size of the starting area in simulation space. */
+//! Size of the starting area in simulation space. */
 #define scene_scale 100.0f
 
 /***********************************************
@@ -65,7 +65,7 @@ dim3 threadsPerBlock(blockSize);
 // These get allocated for you in Boids::initSimulation.
 // Consider why you would need two velocity buffers in a simulation where each
 // boid cares about its neighbors' velocities.
-// These are called ping-pong buffers.
+//! These are called ping-pong buffers.
 glm::vec3 *dev_pos;
 glm::vec3 *dev_vel1;
 glm::vec3 *dev_vel2;
@@ -233,7 +233,50 @@ __device__ glm::vec3 computeVelocityChange(int N, int iSelf, const glm::vec3 *po
   // Rule 1: boids fly towards their local perceived center of mass, which excludes themselves
   // Rule 2: boids try to stay a distance d away from each other
   // Rule 3: boids try to match the speed of surrounding boids
-  return glm::vec3(0.0f, 0.0f, 0.0f);
+
+  glm::vec3 center(0.0f, 0.0f, 0.0f);
+  glm::vec3 separate(0.0f, 0.0f, 0.0f);
+  glm::vec3 cohesion(0.0f, 0.0f, 0.0f);
+
+  int numNeighbors = 0;
+  glm::vec3 res_vel = glm::vec3(0.0f, 0.0f, 0.0f);
+
+
+  glm::vec3 thisPos = pos[iSelf];
+
+  // compute the velocity change based on the three rules
+  for (int i = 0; i < N; i++) {
+    if (i == iSelf) {
+      continue;
+    }
+
+    glm::vec3 otherPos = pos[i];
+    float distance = glm::length(otherPos - thisPos);
+
+    if (distance < rule1Distance) {
+      center += otherPos;
+      numNeighbors++;
+    }
+
+    if (distance < rule2Distance) {
+      separate -= otherPos - thisPos;
+    }
+
+    if (distance < rule3Distance) {
+      cohesion += vel[i];
+    }
+  }
+
+  // update velocity
+  if (numNeighbors > 0) {
+    center /= numNeighbors;
+    res_vel += (center - thisPos) * rule1Scale;
+    res_vel += cohesion * rule3Scale;
+  }
+  res_vel += separate * rule2Scale;
+
+
+  return res_vel;
 }
 
 /**
@@ -242,9 +285,31 @@ __device__ glm::vec3 computeVelocityChange(int N, int iSelf, const glm::vec3 *po
 */
 __global__ void kernUpdateVelocityBruteForce(int N, glm::vec3 *pos,
   glm::vec3 *vel1, glm::vec3 *vel2) {
+  //! Ping-pong the velocity buffers: avoid read and write conflicts, reduce latency
   // Compute a new velocity based on pos and vel1
   // Clamp the speed
-  // Record the new velocity into vel2. Question: why NOT vel1?
+  // Record the new velocity into vel2. 
+  //? Question: why NOT vel1?
+
+  int index = threadIdx.x + (blockIdx.x * blockDim.x);
+  if (index >= N) {
+    return;
+  }
+  // Compute a new velocity based on pos and vel1
+  glm::vec3 delta_vel = computeVelocityChange(N, index, pos, vel1);
+  
+  // Ping-pong the velocity buffers
+  // Update the velocity2
+  glm::vec3 new_vel = vel2[index] + delta_vel;
+  // Clamp the speed
+  float speed = glm::length(new_vel);
+  if (speed > maxSpeed) {
+    new_vel = new_vel * maxSpeed / speed;
+  }
+
+  vel2[index] = new_vel;
+
+
 }
 
 /**
@@ -348,7 +413,18 @@ __global__ void kernUpdateVelNeighborSearchCoherent(
 */
 void Boids::stepSimulationNaive(float dt) {
   // TODO-1.2 - use the kernels you wrote to step the simulation forward in time.
+  dim3 fullBlocksPerGrid((numObjects + blockSize - 1) / blockSize);
+  // Update the velocity first
+  kernUpdateVelocityBruteForce << <fullBlocksPerGrid, blockSize >> >(numObjects, dev_pos, dev_vel1, dev_vel2);
+
+
   // TODO-1.2 ping-pong the velocity buffers
+  // Swap the velocity buffers
+  glm::vec3 *temp = dev_vel1;
+  dev_vel1 = dev_vel2;
+  dev_vel2 = temp;
+  kernUpdatePos << <fullBlocksPerGrid, blockSize >> >(numObjects, dt, dev_pos, dev_vel1);
+
 }
 
 void Boids::stepSimulationScatteredGrid(float dt) {
