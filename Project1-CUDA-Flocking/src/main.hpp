@@ -5,6 +5,7 @@
 #include <string>
 #include <sstream>
 #include <fstream>
+#include <chrono>
 #include <GL/glew.h>
 #include <GLFW/glfw3.h>
 #include <cuda_runtime.h>
@@ -72,9 +73,12 @@ void mousePositionCallback(GLFWwindow* window, double xpos, double ypos);
 void updateCamera();
 void runCUDA();
 
+bool timetest_init(int N);
+void timetest_loop(std::ostream& os);
+
 //====================================
 // Setup/init Stuff
 //====================================
 bool init(int argc, char **argv);
-void initVAO();
+void initVAO(int N);
 void initShaders(GLuint *program);

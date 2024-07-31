@@ -9,6 +9,7 @@
 #include <cuda.h>
 #include <cmath>
 #include <vector>
+#include "device_launch_parameters.h"
 
 namespace Boids {
     void initSimulation(int N);

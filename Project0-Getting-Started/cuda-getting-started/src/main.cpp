@@ -11,7 +11,7 @@
  */
 int main(int argc, char* argv[]) {
     // TODO: Change this line to use your name!
-    m_yourName = "TODO: YOUR NAME HERE";
+    m_yourName = "Rainzor";
 
     if (init(argc, argv)) {
         mainLoop();
@@ -78,6 +78,9 @@ bool init(int argc, char **argv) {
     return true;
 }
 
+
+// A Pixel Buffer Object is an OpenGL buffer used specifically for asynchronous pixel transfer operations. 
+// It allows pixel data to be moved to and from GPU memory without stalling the CPU
 void initPBO(GLuint *pbo) {
     if (pbo) {
         // set up vertex data parameter
@@ -88,9 +91,11 @@ void initPBO(GLuint *pbo) {
         // Generate a buffer ID called a PBO (Pixel Buffer Object)
         glGenBuffers(1, pbo);
         // Make this the current UNPACK buffer (OpenGL is state-based)
+        // GL_PIXEL_UNPACK_BUFFER means that the data is transferred from the buffer to the texture.
         glBindBuffer(GL_PIXEL_UNPACK_BUFFER, *pbo);
         // Allocate data for the buffer. 4-channel 8-bit image
         glBufferData(GL_PIXEL_UNPACK_BUFFER, size_tex_data, NULL, GL_DYNAMIC_COPY);
+        // registers the buffer with CUDA, allowing CUDA to map and access the buffer.
         cudaGLRegisterBufferObject(*pbo);
     }
 }
@@ -171,7 +176,7 @@ void runCUDA() {
     // Execute the kernel
     kernelVersionVis(dptr, m_width, m_height, m_major, m_minor);
 
-    // Unmap buffer object
+    // Unmap buffer object£¬making it available for OpenGL operations again.
     cudaGLUnmapBufferObject(m_pbo);
 }
 
@@ -182,6 +187,9 @@ void mainLoop() {
 
         glBindBuffer(GL_PIXEL_UNPACK_BUFFER, m_pbo);
         glBindTexture(GL_TEXTURE_2D, m_image);
+        // glDrawPixels(), glTexImage2D() and glTexSubImage2D() is unpacking operation 
+        // that transfers the pixel data from the buffer (m_pbo) to the texture (m_image).
+        // updates the texture with the new image data from the pixel buffer object. 
         glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, m_width, m_height, GL_RGBA,
                         GL_UNSIGNED_BYTE, NULL);
         glClear(GL_COLOR_BUFFER_BIT);

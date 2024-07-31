@@ -13,27 +13,75 @@
 // ================
 
 // LOOK-2.1 LOOK-2.3 - toggles for UNIFORM_GRID and COHERENT_GRID
-#define VISUALIZE 1
-#define UNIFORM_GRID 1
-#define COHERENT_GRID 1
+#define VISUALIZE 0
+#define UNIFORM_GRID 0
+#define COHERENT_GRID 0
 
 // LOOK-1.2 - change this to adjust particle count in the simulation
-const int N_FOR_VIS = 500000;
+const int N_FOR_VIS = 4096;
 const float DT = 0.2f;
+
+void dataset() {
+
+#if UNIFORM_GRID && COHERENT_GRID
+    const std::string filename = "coherent_grid.txt";
+#elif UNIFORM_GRID
+    const std::string filename = "uniform_grid.txt";
+#else
+    const std::string filename = "naive.txt";
+#endif
+
+    std::ofstream ofs(filename, std::ofstream::out);
+    if (!ofs.is_open()) {
+        std::cerr << "Error: Could not open file " << filename << std::endl;
+    }
+    ofs << "N, FPS" << std::endl;
+
+    for (int count = 128; count < 1000000; count <<= 1) {
+        Boids::initSimulation(count);
+        cudaDeviceSynchronize();
+        auto time_base = std::chrono::high_resolution_clock::now();
+        auto time = std::chrono::high_resolution_clock::now();
+        float ms = 0.0f;
+        float fps;
+        int frame = 0;
+        do {
+#if UNIFORM_GRID && COHERENT_GRID
+            Boids::stepSimulationCoherentGrid(DT);
+#elif UNIFORM_GRID
+            Boids::stepSimulationScatteredGrid(DT);
+#else
+            Boids::stepSimulationNaive(DT);
+#endif
+            cudaDeviceSynchronize();
+            frame++;
+            time = std::chrono::high_resolution_clock::now();
+            ms = std::chrono::duration_cast<std::chrono::milliseconds>(time - time_base).count();
+        } while (ms < 5000 || frame < 20);
+        fps = frame * 1000.0f / ms;
+        ofs << count << ", " << fps << std::endl;
+        std::cout << "N = " << count << ", FPS = " << fps << std::endl;
+        Boids::endSimulation();
+    }
+    ofs.close();
+}
+
 
 /**
 * C main function.
 */
 int main(int argc, char* argv[]) {
   projectName = "565 CUDA Intro: Boids";
-
   if (init(argc, argv)) {
-    mainLoop();
-    Boids::endSimulation();
-    return 0;
-  } else {
-    return 1;
+      mainLoop();
+      Boids::endSimulation();
+      return 0;
+}
+  else {
+      return 1;
   }
+
+//  dataset();
 }
 
 //-------------------------------
@@ -99,7 +147,7 @@ bool init(int argc, char **argv) {
   }
 
   // Initialize drawing state
-  initVAO();
+  initVAO(N_FOR_VIS);
 
   // Default to device ID 0. If you have more than one GPU and want to test a non-default one,
   // change the device ID.
@@ -120,15 +168,15 @@ bool init(int argc, char **argv) {
   return true;
 }
 
-void initVAO() {
+void initVAO(int N) {
 
-  std::unique_ptr<GLfloat[]> bodies{ new GLfloat[4 * (N_FOR_VIS)] };
-  std::unique_ptr<GLuint[]> bindices{ new GLuint[N_FOR_VIS] };
+  std::unique_ptr<GLfloat[]> bodies{ new GLfloat[4 * (N)] };
+  std::unique_ptr<GLuint[]> bindices{ new GLuint[N] };
 
   glm::vec4 ul(-1.0, -1.0, 1.0, 1.0);
   glm::vec4 lr(1.0, 1.0, 0.0, 0.0);
 
-  for (int i = 0; i < N_FOR_VIS; i++) {
+  for (int i = 0; i < N; i++) {
     bodies[4 * i + 0] = 0.0f;
     bodies[4 * i + 1] = 0.0f;
     bodies[4 * i + 2] = 0.0f;
@@ -146,18 +194,18 @@ void initVAO() {
 
   // Bind the positions array to the boidVAO by way of the boidVBO_positions
   glBindBuffer(GL_ARRAY_BUFFER, boidVBO_positions); // bind the buffer
-  glBufferData(GL_ARRAY_BUFFER, 4 * (N_FOR_VIS) * sizeof(GLfloat), bodies.get(), GL_DYNAMIC_DRAW); // transfer data from the CPU to the GPU
+  glBufferData(GL_ARRAY_BUFFER, 4 * (N) * sizeof(GLfloat), bodies.get(), GL_DYNAMIC_DRAW); // transfer data from the CPU to the GPU
   glEnableVertexAttribArray(positionLocation);// create a pointer to the boidVBO_positions data
   glVertexAttribPointer((GLuint)positionLocation, 4, GL_FLOAT, GL_FALSE, 0, 0);
 
   // Bind the velocities array to the boidVAO by way of the boidVBO_velocities
   glBindBuffer(GL_ARRAY_BUFFER, boidVBO_velocities);
-  glBufferData(GL_ARRAY_BUFFER, 4 * (N_FOR_VIS) * sizeof(GLfloat), bodies.get(), GL_DYNAMIC_DRAW);// the same value
+  glBufferData(GL_ARRAY_BUFFER, 4 * (N) * sizeof(GLfloat), bodies.get(), GL_DYNAMIC_DRAW);// the same value
   glEnableVertexAttribArray(velocitiesLocation);// different location
   glVertexAttribPointer((GLuint)velocitiesLocation, 4, GL_FLOAT, GL_FALSE, 0, 0);
 
   glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, boidIBO);
-  glBufferData(GL_ELEMENT_ARRAY_BUFFER, (N_FOR_VIS) * sizeof(GLuint), bindices.get(), GL_STATIC_DRAW);
+  glBufferData(GL_ELEMENT_ARRAY_BUFFER, (N) * sizeof(GLuint), bindices.get(), GL_STATIC_DRAW);
 
   glBindVertexArray(0);
 }
@@ -218,7 +266,7 @@ void initShaders(GLuint * program) {
 
     // Boids::unitTest(); // LOOK-1.2 We run some basic example code to make sure
                        // your CUDA development setup is ready to go.
-
+    
     while (!glfwWindowShouldClose(window)) {
       glfwPollEvents();
 
@@ -316,3 +364,106 @@ void initShaders(GLuint * program) {
       glUniformMatrix4fv(location, 1, GL_FALSE, &projection[0][0]);
     }
   }
+
+
+  bool timetest_init(int N) {
+      // Set window title to "Student Name: [SM 2.0] GPU Name"
+      cudaDeviceProp deviceProp;
+      int gpuDevice = 0;
+      int device_count = 0;
+      cudaGetDeviceCount(&device_count);
+      if (gpuDevice > device_count) {
+          std::cout
+              << "Error: GPU device number is greater than the number of devices!"
+              << " Perhaps a CUDA-capable GPU is not installed?"
+              << std::endl;
+          return false;
+      }
+      cudaGetDeviceProperties(&deviceProp, gpuDevice);
+      int major = deviceProp.major;
+      int minor = deviceProp.minor;
+
+      std::ostringstream ss;
+      ss << projectName << " [SM " << major << "." << minor << " " << deviceProp.name << "]";
+      deviceName = ss.str();
+
+      // Window setup stuff
+      glfwSetErrorCallback(errorCallback);
+
+      if (!glfwInit()) {
+          std::cout
+              << "Error: Could not initialize GLFW!"
+              << " Perhaps OpenGL 3.3 isn't available?"
+              << std::endl;
+          return false;
+      }
+
+      glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
+      glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
+      glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
+      glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+
+      window = glfwCreateWindow(width, height, deviceName.c_str(), NULL, NULL);
+      if (!window) {
+          glfwTerminate();
+          return false;
+      }
+      glfwMakeContextCurrent(window);
+      glfwSetKeyCallback(window, keyCallback);
+      glfwSetCursorPosCallback(window, mousePositionCallback);
+      glfwSetMouseButtonCallback(window, mouseButtonCallback);
+
+      glewExperimental = GL_TRUE;
+      if (glewInit() != GLEW_OK) {
+          return false;
+      }
+
+      // Initialize drawing state
+      initVAO(N);
+
+      // Default to device ID 0. If you have more than one GPU and want to test a non-default one,
+      // change the device ID.
+      cudaGLSetGLDevice(0);
+
+      cudaGLRegisterBufferObject(boidVBO_positions);
+      cudaGLRegisterBufferObject(boidVBO_velocities);
+
+      // Initialize N-body simulation
+      Boids::initSimulation(N);
+
+      updateCamera();
+
+      initShaders(program);
+
+      glEnable(GL_DEPTH_TEST);
+
+      return true;
+  }
+
+  void timetest_loop(std::ostream& os) {
+      double fps = 0;
+      double timebase = 0;
+      int frame = 0;
+
+      // Boids::unitTest(); // LOOK-1.2 We run some basic example code to make sure
+                         // your CUDA development setup is ready to go.
+
+      while (!glfwWindowShouldClose(window)) {
+          glfwPollEvents();
+
+          frame++;
+          double time = glfwGetTime();
+
+          if (time - timebase > 1.0) {
+              fps = frame / (time - timebase);
+              timebase = time;
+              frame = 0;
+          }
+          runCUDA();
+          glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+      }
+      glfwDestroyWindow(window);
+      glfwTerminate();
+  }
+
+

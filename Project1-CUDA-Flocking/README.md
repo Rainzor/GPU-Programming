@@ -31,9 +31,10 @@ The simulation is based on  the **Reynolds Boids algorithm**, along with three l
   - Label every boid with an index key representing its enclosing cell.
   - Sort the key & value array.
   - Create the start & end array representing the border of the two different cells.
-- semi-coherent memory access: **spatial locality that mead load data to the warp chuck by chuck.**
-  -  Rearranging the boid data so that all the velocities and positions of boids in one cell are also
-    contiguous in memory. 
+  - `thrust::sort_by_key`: sorting the value based on the key.
+- semi-coherent memory access: **spatial locality that lead load data to the warp chuck by chuck.**
+  -  Rearranging the boid data so that all the velocities and positions of boids in one cell are also contiguous in memory. As the SM execute a warp, the data nearby will be loaded  at the same time.
+  -  `thrust::gather`：rearranging  the data according to index buffer.
 
 <img src="assets/Boids Ugrids buffers naive.png" alt="buffers for generating a uniform grid using index sort" style="zoom:50%;" />
 
@@ -45,8 +46,20 @@ The simulation is based on  the **Reynolds Boids algorithm**, along with three l
 
 **For each implementation, how does changing the block count and block size affect performance? Why do you think this is?**
 
-- Mostly, the more block counts 
+- In my experiment in FLOCKING, increasing the block count can improve performance up to a point.
+
+  This is because each Streaming Multiprocessor (SM) in a GPU has a maximum number of blocks and threads it can handle simultaneously. If the block count exceeds this limit, the GPU must schedule the blocks, potentially reducing efficiency due to context switching and overhead.
+
+  When considering a fixed number of boids, decreasing the block size leads to an increase in block count. Consequently, more boids can be processed in parallel across multiple blocks, enhancing performance.
+
+- However, in other cases, the smaller block may also helpful to improve performance.
+
+  - Shared memory and registers are limited resources per SM. Larger block sizes might require more resources per block, potentially limiting the number of concurrent blocks on an SM. This **trade-off** must be managed to ensure enough blocks can be resident to keep the GPU busy.
+  - Occupancy is the ratio of active warps per SM to the maximum number of warps that the SM can support. Higher occupancy often leads to better performance, but it is not the only factor. The block size can impact occupancy; smaller block sizes might increase occupancy, but very small block sizes can lead to insufficient work per block.
 
 **For the coherent uniform grid: did you experience any performance improvements with the more coherent uniform grid? Was this the outcome you expected? Why or why not?**
+
+- The results show that the performance was improved with the aid of coherent grid. 
+- This outcome was expected as GPU would pull out one chunk of memory at a time for a warp to access, and thus with coherent grid all threads in one warp would read the same chunk of data pulled out from GPU memory, thus reducing the memory I/O.
 
 **Did changing cell width and checking 27 vs 8 neighboring cells affect performance? Why or why not?** 
