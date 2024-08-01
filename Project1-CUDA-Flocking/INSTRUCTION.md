@@ -191,12 +191,12 @@ A uniform grid is made up of cells that are at least as wide as the neighborhood
 distance and covers the entire simulation domain.
 Before computing the new velocities of the boids, we "bin" them into the grid in
 a preprocess step.
-![a uniform grid in 2D](images/Boids%20Ugrid%20base.png)
+![a uniform grid in 2D](assets/Boids%20Ugrid%20base.png)
 
 If the cell width is double the neighborhood distance, each boid only has to be
 checked against other boids in 8 cells, or 4 in the 2D case.
 
-![a uniform grid in 2D with neighborhood and cells to search for some particles shown](images/Boids%20Ugrid%20neighbor%20search%20shown.png)
+![a uniform grid in 2D with neighborhood and cells to search for some particles shown](assets/Boids%20Ugrid%20neighbor%20search%20shown.png)
 
 You can build a uniform grid on the CPU by iterating over the boids, figuring out
 its enclosing cell, and then keeping a pointer to the boid in a resizeable
@@ -218,7 +218,7 @@ of the representation of two different cells. Storing these locations in a table
 with an entry for each cell gives us a complete representation of the uniform
 grid. This "table" can just be an array with as much space as there are cells.
 This process is data parallel and can be naively parallelized.
-![buffers for generating a uniform grid using index sort](images/Boids%20Ugrids%20buffers%20naive.png)
+![buffers for generating a uniform grid using index sort](assets/Boids%20Ugrids%20buffers%20naive.png)
 
 ### 2.1. Code walkthrough
 
@@ -260,7 +260,7 @@ contiguous in memory, so this data can be accessed directly using
 `dev_gridCellStartIndices` and `dev_gridCellEndIndices` without
 `dev_particleArrayIndices`.
 
-![buffers for generating a uniform grid using index sort, then making the boid data coherent](images/Boids%20Ugrids%20buffers%20data%20coherent.png)
+![buffers for generating a uniform grid using index sort, then making the boid data coherent](assets/Boids%20Ugrids%20buffers%20data%20coherent.png)
 
 See the TODOs for Part 2.3. This should involve a slightly modified copy of
 your code from 2.1.
@@ -279,7 +279,7 @@ fine-grained benchmarking of various parts of your code.
 REMEMBER:
 * Do your performance testing in `Release` mode!
 * Turn off Vertical Sync in Nvidia Control Panel:
-![Unlock FPS](images/UnlockFPS.png)
+![Unlock FPS](assets/UnlockFPS.png)
 * Performance should always be measured relative to some baseline when
   possible. A GPU can make your program faster - but by how much?
 * If a change impacts performance, show a comparison. Describe your changes.

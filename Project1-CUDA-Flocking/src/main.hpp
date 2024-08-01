@@ -74,7 +74,7 @@ void updateCamera();
 void runCUDA();
 
 bool timetest_init(int N);
-void timetest_loop(std::ostream& os);
+double timetest_loop();
 
 //====================================
 // Setup/init Stuff

@@ -751,6 +751,18 @@ void Boids::endSimulation() {
   cudaFree(dev_pos_gathered);
   cudaFree(dev_vel_gathered);
 
+
+  dev_vel1 = nullptr;
+  dev_vel2 = nullptr;
+  dev_pos = nullptr;
+
+  dev_particleArrayIndices = nullptr;
+  dev_particleGridIndices = nullptr;
+  dev_gridCellRanges = nullptr;
+
+  dev_pos_gathered = nullptr;
+  dev_vel_gathered = nullptr;
+
   checkCUDAErrorWithLine("cudaFree failed!");
 }
 
