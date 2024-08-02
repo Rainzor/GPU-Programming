@@ -6,7 +6,7 @@ Project 1 - Flocking**
 
 This project is a CUDA implementation of Boid, an artificial life program that simulates fishes or birds’ flocking behaviors. The simulation is visualized by OpenGL.
 <p align="center">
-  <img src="assets/flocking.gif" width="300" height="300" />
+  <img src="assets/flocking.gif" width="500" height="500" />
 </p>
 
 ## Installation from Source
