@@ -53,7 +53,7 @@ int main(int argc, char *argv[]) {
 
 std::string deviceName;
 GLFWwindow *window;
-bool stop = false;
+bool stop = true;
 /**
  * Initialization of CUDA and GLFW.
  */
