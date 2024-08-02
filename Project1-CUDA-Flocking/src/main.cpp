@@ -20,7 +20,7 @@
 
 // LOOK-1.2 - change this to adjust particle count in the simulation
 
-int N_FOR_VIS = 65536;
+int N_FOR_VIS = 100000;
 bool save = false;
 bool visualize = false;
 const float DT = 0.2f;
