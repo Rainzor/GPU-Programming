@@ -9,7 +9,7 @@ for ($i = $startExponent; $i -le $endExponent; $i++) {
    
     $N = [math]::Pow(2, $i)
     
-    $arguments = @("-n", "$N", "-v", "-s")
+    $arguments = @("-n", "$N", "-s")
 
     & $programPath $arguments
 

@@ -255,7 +255,7 @@ void mainLoop() {
 
         if (time - timebase > 1.0) {
             fps = frame / (time - timebase);
-            if(fps_count > start_sample)
+            if(fps_count >= start_sample)
                 fps_sum += fps;
             fps_count++;
             timebase = time;
