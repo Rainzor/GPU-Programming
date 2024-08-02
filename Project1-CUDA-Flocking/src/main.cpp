@@ -13,27 +13,18 @@
 // ================
 
 // LOOK-2.1 LOOK-2.3 - toggles for UNIFORM_GRID and COHERENT_GRID
-#define VISUALIZE 0
-#define UNIFORM_GRID 0
-#define COHERENT_GRID 0
+// #define VISUALIZE 1
+#define UNIFORM_GRID 1
+#define COHERENT_GRID 1
+
 
 // LOOK-1.2 - change this to adjust particle count in the simulation
 
-const int N_FOR_VIS = 128;
+int N_FOR_VIS = 65536;
+bool save = false;
+bool visualize = false;
 const float DT = 0.2f;
-void cleanup() {
-    cudaGLUnmapBufferObject(boidVBO_positions);
-    cudaGLUnmapBufferObject(boidVBO_velocities);
-    cudaGLUnregisterBufferObject(boidVBO_positions);
-    cudaGLUnregisterBufferObject(boidVBO_velocities);
 
-    glDeleteBuffers(1, &boidVBO_positions);
-    glDeleteBuffers(1, &boidVBO_velocities);
-    glDeleteBuffers(1, &boidIBO);
-    glDeleteVertexArrays(1, &boidVAO);
-}
-
-void dataset() {
 
 #if UNIFORM_GRID && COHERENT_GRID
     const std::string filename = "coherent_grid.txt";
@@ -42,41 +33,6 @@ void dataset() {
 #else
     const std::string filename = "naive.txt";
 #endif
-
-    std::ofstream ofs(filename, std::ofstream::out);
-    if (!ofs.is_open()) {
-        std::cerr << "Error: Could not open file " << filename << std::endl;
-    }
-    ofs << "N, FPS" << std::endl;
-
-    for (int count = 128; count < 1000000; count <<= 1) {
-        Boids::initSimulation(count);
-        auto time_base = std::chrono::high_resolution_clock::now();
-        auto time = std::chrono::high_resolution_clock::now();
-        float ms = 0.0f;
-        float fps;
-        int frame = 0;
-        do {
-#if UNIFORM_GRID && COHERENT_GRID
-            Boids::stepSimulationCoherentGrid(DT);
-#elif UNIFORM_GRID
-            Boids::stepSimulationScatteredGrid(DT);
-#else
-            Boids::stepSimulationNaive(DT);
-#endif
-            cudaDeviceSynchronize();
-            frame++;
-            time = std::chrono::high_resolution_clock::now();
-            ms = std::chrono::duration_cast<std::chrono::milliseconds>(time - time_base).count();
-        } while (ms < 5000 || frame < 20);
-        fps = frame * 1000.0f / ms;
-        ofs << count << ", " << fps << std::endl;
-        std::cout << "N = " << count << ", FPS = " << fps << std::endl;
-        Boids::endSimulation();
-    }
-    ofs.close();
-}
-
 /**
  * C main function.
  */
@@ -85,7 +41,6 @@ int main(int argc, char *argv[]) {
 	if (init(argc, argv)) {
 		mainLoop();
 		Boids::endSimulation();
-		cleanup();
 	} else {
 		return 1;
 	}	
@@ -103,6 +58,19 @@ bool stop = false;
  * Initialization of CUDA and GLFW.
  */
 bool init(int argc, char **argv) {
+    for (int i = 1; i < argc; ++i) {
+        if (std::string(argv[i]) == "--save" || std::string(argv[i]) == "-s") {
+            save = true;
+        }
+        if (std::string(argv[i]) == "--vis" || std::string(argv[i]) == "-v") {
+            visualize = true;
+        }
+        if (std::string(argv[i]) == "--num" || std::string(argv[i]) == "-n") {
+            N_FOR_VIS = std::stoi(argv[i + 1]);
+            i++;
+        }
+    }
+
     // Set window title to "Student Name: [SM 2.0] GPU Name"
     cudaDeviceProp deviceProp;
     int gpuDevice = 0;
@@ -258,9 +226,9 @@ void runCUDA() {
     Boids::stepSimulationNaive(DT);
 #endif
 
-#if VISUALIZE
-    Boids::copyBoidsToVBO(dptrVertPositions, dptrVertVelocities);
-#endif
+    if(visualize){
+        Boids::copyBoidsToVBO(dptrVertPositions, dptrVertVelocities);
+    }
     // unmap buffer object
     cudaGLUnmapBufferObject(boidVBO_positions);
     cudaGLUnmapBufferObject(boidVBO_velocities);
@@ -268,13 +236,18 @@ void runCUDA() {
 
 void mainLoop() {
     double fps = 0;
-    double timebase = 0;
+    double timebase = glfwGetTime();
     int frame = 0;
+    int fps_count = 0;
+    double fps_sum = 0;
+    int fps_samples = 10;  // Number of FPS samples to average
+    int start_sample = 5;
+    if(!save){
+        start_sample = 0;
+        fps_samples = 100000;
+    }
 
-    // Boids::unitTest(); // LOOK-1.2 We run some basic example code to make sure
-    // your CUDA development setup is ready to go.
-
-    while (!glfwWindowShouldClose(window)) {
+    while (!glfwWindowShouldClose(window) && fps_count < fps_samples) {
         glfwPollEvents();
 
         frame++;
@@ -282,6 +255,9 @@ void mainLoop() {
 
         if (time - timebase > 1.0) {
             fps = frame / (time - timebase);
+            if(fps_count > start_sample)
+                fps_sum += fps;
+            fps_count++;
             timebase = time;
             frame = 0;
         }
@@ -300,19 +276,30 @@ void mainLoop() {
 
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-#if VISUALIZE
-        glUseProgram(program[PROG_BOID]);
-        glBindVertexArray(boidVAO);
-        glPointSize((GLfloat)pointSize);
-        glDrawElements(GL_POINTS, N_FOR_VIS + 1, GL_UNSIGNED_INT, 0);
-        glPointSize(1.0f);
+        if(visualize){
+            glUseProgram(program[PROG_BOID]);
+            glBindVertexArray(boidVAO);
+            glPointSize((GLfloat)pointSize);
+            glDrawElements(GL_POINTS, N_FOR_VIS, GL_UNSIGNED_INT, 0);
+            glPointSize(1.0f);
 
-        glUseProgram(0);
-        glBindVertexArray(0);
+            glUseProgram(0);
+            glBindVertexArray(0);
 
-        glfwSwapBuffers(window);
-#endif
+            glfwSwapBuffers(window);
+        }
     }
+    double average_fps = fps_sum /(fps_count - start_sample);
+    if(save){
+        std::ofstream fpsFile;
+        fpsFile.open(filename, std::ios::app);
+        if (fps_count > 0) {
+            fpsFile << N_FOR_VIS << "," << average_fps << "\n";  // 写入粒子数和平均FPS值
+        }
+
+        fpsFile.close();  // 关闭文件
+    }
+    std::cout << "N = " << N_FOR_VIS << ", FPS = " << average_fps << std::endl;
     glfwDestroyWindow(window);
     glfwTerminate();
 }

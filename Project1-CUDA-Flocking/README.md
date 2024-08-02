@@ -2,11 +2,31 @@
 Project 1 - Flocking**
 
 * Runze Wang
-* Tested on: Windows 22, VS2022, CUDA12.2, GeForce1650
+* Tested on: Windows 22, VS2019, CUDA12.2, RTX4060
 
 This project is a CUDA implementation of Boid, an artificial life program that simulates fishes or birds’ flocking behaviors. The simulation is visualized by OpenGL.
 
 <img src="assets/flocking.gif" style="zoom:50%;" />
+
+## Installation from Source
+
+```sh
+cmake -Bbuild .
+cmake --build build --config Release
+.\install\bin\Release\cis565_boids.exe -v
+```
+
+<details>
+<summary><span style="font-weight: bold;">Command Line Arguments for full_eval.py</span></summary>
+
+  #### --save/ -s
+  Flag to test num and fps, and save to files  (Default false)
+  #### --vis/ -v
+  Flag to visualize the simulation (Default false)
+  #### --num/ -n
+  Set the number of simulation
+</details>
+<br>
 
 ## Introduction: Flocking Simulation
 
@@ -22,16 +42,26 @@ The objective of this project would be to build a flocking simulation using CUDA
 
 ## Algorithm: CUDA Acceleration
 
-The simulation is based on  the **Reynolds Boids algorithm**, along with three levels of optimization. More details is in [INSTRUCTION](./INSTRUCTION.md).
+The simulation is based on  the **Reynolds Boids algorithm**, along with three levels of optimization. More details is in [INSTRUCTION](./INSTRUCTION.md). If you want to change the algorithm for flocking simulation, you need to set `UNIFORM_GRID` and `COHERENT_GRID` in [**src/main.cpp**](./src/main.cpp) .
+
+<img src="assets/output.png" style="zoom:67%;" />
+
+### Brute Force
 
 - ping-pong buffers: **avoid read & write conflict and hide latency with the SIMT of CUDA.**
   - While one buffer provides output, the other buffer can be written asynchronously. 
   - Switch over when required.
+
+### Uniform Grid
+
 - uniform spatial grid: **avoid global loop for checking every other boid.**
   - Label every boid with an index key representing its enclosing cell.
   - Sort the key & value array.
   - Create the start & end array representing the border of the two different cells.
   - `thrust::sort_by_key`: sorting the value based on the key.
+
+### Coherent Grid
+
 - semi-coherent memory access: **spatial locality that lead load data to the warp chuck by chuck.**
   -  Rearranging the boid data so that all the velocities and positions of boids in one cell are also contiguous in memory. As the SM execute a warp, the data nearby will be loaded  at the same time.
   -  `thrust::gather`：rearranging  the data according to index buffer.
