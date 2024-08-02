@@ -8,6 +8,7 @@ This project is a CUDA implementation of Boid, an artificial life program that s
 <p align="center">
   <img src="assets/flocking.gif" width="300" height="300" />
 </p>
+
 ## Installation from Source
 
 ```sh
