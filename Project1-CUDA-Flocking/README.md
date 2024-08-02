@@ -18,7 +18,7 @@ cmake --build build --config Release
 ```
 
 <details>
-<summary><span style="font-weight: bold;">Command Line Arguments for full_eval.py</span></summary>
+<summary><span style="font-weight: bold;">Command Line Arguments</span></summary>
 
   #### --save/ -s
   Flag to test num and fps, and save to files  (Default false)
