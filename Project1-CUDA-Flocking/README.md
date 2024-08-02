@@ -5,9 +5,9 @@ Project 1 - Flocking**
 * Tested on: Windows 22, VS2019, CUDA12.2, RTX4060
 
 This project is a CUDA implementation of Boid, an artificial life program that simulates fishes or birds’ flocking behaviors. The simulation is visualized by OpenGL.
-
-<img src="assets/flocking.gif" style="zoom:50%;" />
-
+<p align="center">
+  <img src="assets/flocking.gif" width="300" height="300" />
+</p>
 ## Installation from Source
 
 ```sh
@@ -44,7 +44,9 @@ The objective of this project would be to build a flocking simulation using CUDA
 
 The simulation is based on  the **Reynolds Boids algorithm**, along with three levels of optimization. More details is in [INSTRUCTION](./INSTRUCTION.md). If you want to change the algorithm for flocking simulation, you need to set `UNIFORM_GRID` and `COHERENT_GRID` in [**src/main.cpp**](./src/main.cpp) .
 
-<img src="assets/output.png" style="zoom:67%;" />
+<p align="center">
+  <img src="assets/output.png" width="350" height="350" />
+</p>
 
 ### Brute Force
 
