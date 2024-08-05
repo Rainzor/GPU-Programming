@@ -13,13 +13,24 @@ namespace StreamCompaction {
         }
 
         /**
+        * CPU scan core function.
+        * This function runs without starting CPU timer.
+        */
+        void scan_core(int n, int *odata, const int *idata) {
+            odata[0] = 0;
+            for (int i = 1; i < n; i++) {
+                odata[i] = odata[i - 1] + idata[i - 1];
+            }
+        }
+
+        /**
          * CPU scan (prefix sum).
          * For performance analysis, this is supposed to be a simple for loop.
          * (Optional) For better understanding before starting moving to GPU, you can simulate your GPU scan in this function first.
          */
         void scan(int n, int *odata, const int *idata) {
             timer().startCpuTimer();
-            // TODO
+            scan_core(n, odata, idata);
             timer().endCpuTimer();
         }
 
@@ -30,11 +41,16 @@ namespace StreamCompaction {
          */
         int compactWithoutScan(int n, int *odata, const int *idata) {
             timer().startCpuTimer();
-            // TODO
+            int count = 0;
+            for (int i = 0; i < n; i++) {
+                if (idata[i] != 0) {
+                    odata[count] = idata[i];
+                    count++;
+                }
+            }
             timer().endCpuTimer();
-            return -1;
+            return count;
         }
-
         /**
          * CPU stream compaction using scan and scatter, like the parallel version.
          *
@@ -42,9 +58,27 @@ namespace StreamCompaction {
          */
         int compactWithScan(int n, int *odata, const int *idata) {
             timer().startCpuTimer();
-            // TODO
+            int* boolBuffer = new int[n];
+            int* scanBuffer = new int[n];
+            // Map to boolean
+            for (int i = 0; i < n; i++) {
+                boolBuffer[i] = idata[i] != 0 ? 1 : 0;
+            }
+            // Exclusive scan
+            scan_core(n, scanBuffer, boolBuffer);
+            int count = scanBuffer[n-1] + boolBuffer[n-1];
+
+            // Scatter
+            for (int i = 0; i < n; i++) {
+                if (boolBuffer[i] == 1) {
+                    odata[scanBuffer[i]] = idata[i];
+                }
+            }
+            
+            delete[] boolBuffer;
+            delete[] scanBuffer;
             timer().endCpuTimer();
-            return -1;
+            return count;
         }
     }
 }
