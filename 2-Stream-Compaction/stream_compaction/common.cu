@@ -18,6 +18,36 @@ void checkCUDAErrorFn(const char *msg, const char *file, int line) {
 namespace StreamCompaction {
     namespace Common {
 
+        /*
+        * Extract the last element of every block  
+        * if the size of src array is k*stride, then the size of dst array should be k
+        * @parms
+        * k: the number of grids for src
+        * stride: the stride of the block for src
+        * dst: the destination array
+        * src: the source array  
+        */
+        __global__ void kernExtractLastElementPerBlock(int k, int stride, int* dst, const int* src) {
+            int idx = blockIdx.x * blockDim.x + threadIdx.x;
+            if(idx >= k)
+                return;
+            int lastIdx = (idx + 1) * stride - 1;
+            dst[idx] = src[lastIdx];
+        }
+        /*
+        * Add offset to the array, 
+        * if size of src arrary is k, then the dst array size should be n = k * stride
+        * @parms
+        * n: the number of elements in the dst array
+        */
+
+        __global__ void kernAddOffset(int n, int* dst, const int* src){
+            int idx = blockIdx.x * blockDim.x + threadIdx.x;
+            if(idx >= n)
+                return;
+            dst[idx] += src[blockIdx.x];
+        }
+
         /**
          * Maps an array to an array of 0s and 1s for stream compaction. Elements
          * which map to 0 will be removed, and elements which map to 1 will be kept.

@@ -11,7 +11,12 @@ namespace StreamCompaction {
             static PerformanceTimer timer;
             return timer;
         }
-        // Exclusive scan in Block Level
+        /* Exclusive scan in Block Level
+        * the size of odata should be BLOCK_SIZE * gird_size, 
+        * so that need to padding the last block
+        * @parms
+        * n: the number of elements in idata
+        */
         __global__ void kernInclusiveScanPerBlock(int n, int* odata, const int* idata){
             int tid = threadIdx.x;
             int bid = blockIdx.x;
@@ -34,28 +39,6 @@ namespace StreamCompaction {
             odata[gid] = buffer[ping][tid];
         }
         
-        /*
-        * Extract the last element of every block  
-        * @parms
-        * n: the number of grids for src
-        * stride: the stride of the block for src
-        * dst: the destination array
-        * src: the source array  
-        */
-        __global__ void kernExtractLastElementPerBlock(int n, int stride, int* dst, const int* src) {
-            int idx = blockIdx.x * blockDim.x + threadIdx.x;
-            if(idx >= n)
-                return;
-            int lastIdx = (idx + 1) * stride - 1;
-            dst[idx] = src[lastIdx];
-        }
-
-        __global__ void kernAddOffset(int n, int* dst, const int* src){
-            int idx = blockIdx.x * blockDim.x + threadIdx.x;
-            if(idx >= n)
-                return;
-            dst[idx] += src[blockIdx.x];
-        }
 
         /*
          * Performs prefix-sum (aka scan) on idata, storing the result into odata.
@@ -87,7 +70,7 @@ namespace StreamCompaction {
                 kernInclusiveScanPerBlock<<<grid_size[i], BLOCK_SIZE>>>(temp_size, dev_ptr[i], dev_tempbuff);
                 // Gather the last element of each block
                 if(i < level - 1){
-                    kernExtractLastElementPerBlock<<<grid_size[i+1], BLOCK_SIZE>>>( grid_size[i], 
+                    Common::kernExtractLastElementPerBlock<<<grid_size[i+1], BLOCK_SIZE>>>( grid_size[i], 
                                                                                     BLOCK_SIZE, 
                                                                                     dev_tempbuff, 
                                                                                     dev_ptr[i]);
@@ -96,7 +79,7 @@ namespace StreamCompaction {
             }
             // Scatter the offset to the original array
             for(int i = level - 2; i >= 0; i--){
-                kernAddOffset<<<grid_size[i], BLOCK_SIZE>>>(grid_size[i] * BLOCK_SIZE, dev_ptr[i], dev_ptr[i+1]);
+                Common::kernAddOffset<<<grid_size[i], BLOCK_SIZE>>>(grid_size[i] * BLOCK_SIZE, dev_ptr[i], dev_ptr[i+1]);
             }
 
             timer().endGpuTimer();

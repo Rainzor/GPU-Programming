@@ -34,6 +34,10 @@ inline int ilog2ceil(int x) {
 
 namespace StreamCompaction {
     namespace Common {
+        __global__ void kernExtractLastElementPerBlock(int k, int stride, int* dst, const int* src);
+
+        __global__ void kernAddOffset(int n, int* dst, const int* src);
+
         __global__ void kernMapToBoolean(int n, int *bools, const int *idata);
 
         __global__ void kernScatter(int n, int *odata,
