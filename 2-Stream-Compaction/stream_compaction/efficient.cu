@@ -22,10 +22,19 @@ namespace StreamCompaction {
         __global__ void kernInclusiveScanPerBlock(int n, int* odata, const int* idata){
             int tid = threadIdx.x;
             int tid2 = tid << 1;
-            int gid2 = (blockIdx.x * blockDim.x + tid) * 2; // Each thread handle 2 elements
-            __shared__ int buffer[BLOCK_SIZE];
-            buffer[tid2] = (0 < gid2) ? idata[gid2 - 1] : 0;
-            buffer[tid2+1] = (gid2 + 1 < n) ? idata[gid2] : 0;       
+            int gid2 = blockIdx.x * BLOCK_SIZE + tid2; // Each thread handles 2 elements
+            int global_base = blockIdx.x * BLOCK_SIZE;
+            __shared__ int buffer[BLOCK_SIZE+BLOCK_SIZE/NUM_BANKS];
+
+            // Load the data to the shared memory
+            int ai = tid;
+            int bi = tid + BLOCK_SIZE/2;
+            ai += CONFLICT_FREE_OFFSET(ai);
+            bi += CONFLICT_FREE_OFFSET(bi);
+            int gid = global_base + tid;
+            buffer[ai] = (0 < gid && gid < n) ? idata[gid-1] : 0;
+            gid = global_base + tid + BLOCK_SIZE/2;
+            buffer[bi] = (0 < gid && gid < n) ? idata[gid-1] : 0;   
             __syncthreads();
             
             // Up-Sweep (Reduce)
@@ -34,6 +43,8 @@ namespace StreamCompaction {
                 if(tid < stride){
                     int ai = offset * (tid2 + 1) - 1;
                     int bi = offset * (tid2 + 2) - 1;
+                    ai += CONFLICT_FREE_OFFSET(ai);
+                    bi += CONFLICT_FREE_OFFSET(bi);
                     buffer[bi] += buffer[ai];
                 }
                 offset <<= 1;
@@ -43,8 +54,9 @@ namespace StreamCompaction {
             // Down-Sweep (Distribute)
             int sum = 0;
             if(tid == blockDim.x - 1){
-                sum = buffer[BLOCK_SIZE - 1];
-                buffer[BLOCK_SIZE - 1] = 0;
+                ai = BLOCK_SIZE - 1 + CONFLICT_FREE_OFFSET(BLOCK_SIZE - 1);
+                sum = buffer[ai];
+                buffer[ai] = 0;
             }
             __syncthreads();
 
@@ -53,6 +65,8 @@ namespace StreamCompaction {
                 if(tid < stride){
                     int ai = offset * (tid2 + 1) - 1;
                     int bi = offset * (tid2 + 2) - 1;
+                    ai += CONFLICT_FREE_OFFSET(ai);
+                    bi += CONFLICT_FREE_OFFSET(bi);
                     int t = buffer[ai];
                     buffer[ai] = buffer[bi];
                     buffer[bi] += t;
@@ -62,8 +76,14 @@ namespace StreamCompaction {
 
             }
             // Write the result to the output
-            odata[gid2] = buffer[tid2+1];
-            odata[gid2+1] = (tid < blockDim.x - 1) ? buffer[tid2+2] : sum;
+            ai = tid+1;
+            bi = tid+1+BLOCK_SIZE/2;
+            ai += CONFLICT_FREE_OFFSET(ai);
+            bi += CONFLICT_FREE_OFFSET(bi);
+            gid = global_base + tid;
+            odata[gid] = buffer[ai];
+            gid = global_base + tid + BLOCK_SIZE/2;
+            odata[gid] = (tid < blockDim.x - 1) ? buffer[bi] : sum;
         }
 
         /**

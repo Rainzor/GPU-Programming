@@ -14,6 +14,9 @@
 #define checkCUDAError(msg) checkCUDAErrorFn(msg, FILENAME, __LINE__)
 
 #define BLOCK_SIZE 512
+#define NUM_BANKS 32
+#define LOG_NUM_BANKS 5
+#define CONFLICT_FREE_OFFSET(n) ((n) >> LOG_NUM_BANKS)
 
 /**
  * Check for CUDA errors; print and exit if there was a problem.
