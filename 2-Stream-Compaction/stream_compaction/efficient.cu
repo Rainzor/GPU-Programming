@@ -17,12 +17,12 @@ namespace StreamCompaction {
         * the size of odata should be BLOCK_SIZE * gird_size, 
         * so that need to padding the last block
         * @parms
-        * n: the number of elements in idata
+        * n: the number of blocks in idata
+        * s: the stride of the block in idata
         */
-        __global__ void kernInclusiveScanPerBlock(int n, int* odata, const int* idata){
+        __global__ void kernInclusiveScanPerBlock(int n, int s, int* odata, const int* idata){
             int tid = threadIdx.x;
-            int tid2 = tid << 1;
-            int gid2 = blockIdx.x * BLOCK_SIZE + tid2; // Each thread handles 2 elements
+            int tid2 = tid*2;
             int global_base = blockIdx.x * BLOCK_SIZE;
             __shared__ int buffer[BLOCK_SIZE+BLOCK_SIZE/NUM_BANKS];
 
@@ -31,10 +31,14 @@ namespace StreamCompaction {
             int bi = tid + BLOCK_SIZE/2;
             ai += CONFLICT_FREE_OFFSET(ai);
             bi += CONFLICT_FREE_OFFSET(bi);
+
             int gid = global_base + tid;
-            buffer[ai] = (0 < gid && gid < n) ? idata[gid-1] : 0;
+            int idx_in = gid * s - 1;// get last element of each pre block
+            buffer[ai] = (0 < gid && gid < n) ? idata[idx_in] : 0;
+
             gid = global_base + tid + BLOCK_SIZE/2;
-            buffer[bi] = (0 < gid && gid < n) ? idata[gid-1] : 0;   
+            idx_in = gid * s - 1;
+            buffer[bi] = (0 < gid && gid < n) ? idata[idx_in] : 0;
             __syncthreads();
             
             // Up-Sweep (Reduce)
@@ -86,53 +90,37 @@ namespace StreamCompaction {
             odata[gid] = (tid < blockDim.x - 1) ? buffer[bi] : sum;
         }
 
-        void scanOnDevice(int n, int*dev_odata, const int*dev_idata){
+        void scanOnDevice(int n, int*dev_odata,const int*dev_idata){
+
             // Malloc different level of memory
-            int level = (ilog2ceil(n)+7)/8;
-            int** dev_ptr = new int*[level];
+            int level = (ilog2ceil(n) + 7) / 8;
+            int** dev_ptr = new int* [level];
             int* grid_size = new int[level];
-            int len = n;
-            for(int i = 0; i < level; i++){
-                grid_size[i] = (len + BLOCK_SIZE - 1) / BLOCK_SIZE;
+            grid_size[0] = (n + BLOCK_SIZE - 1) / BLOCK_SIZE;
+            dev_ptr[0] = dev_odata;
+            for(int i = 1; i < level; i++){
+                grid_size[i] = (grid_size[i-1] + BLOCK_SIZE - 1) / BLOCK_SIZE;
                 cudaMalloc((void**)&dev_ptr[i], grid_size[i] * BLOCK_SIZE * sizeof(int));
-                checkCUDAError("cudaMalloc dev_ptr failed!");
+			    checkCUDAError("cudaMalloc dev_ptr failed!");
                 cudaMemset(dev_ptr[i], 0, grid_size[i] * BLOCK_SIZE * sizeof(int));
-                len = grid_size[i];
             }
-            int* dev_tempbuff;
-            int temp_size = n;
-            cudaMalloc((void**)&dev_tempbuff, temp_size*sizeof(int));
-            checkCUDAError("cudaMalloc dev_tempbuff failed!");
-            cudaMemcpy(dev_tempbuff, dev_idata, temp_size*sizeof(int), cudaMemcpyDeviceToDevice);
-            checkCUDAError("cudaMemcpy idata failed!");
 
             // Scan each block in different level
             dim3 half_block_size(BLOCK_SIZE/2);
-            for(int i = 0; i < level; i++){
-                kernInclusiveScanPerBlock<<<grid_size[i], half_block_size>>>(temp_size, dev_ptr[i], dev_tempbuff);
-                // Gather the last element of each block
-                if(i < level - 1){
-                    Common::kernExtractLastElementPerBlock<<<grid_size[i+1], BLOCK_SIZE>>>( grid_size[i], 
-                                                                                    BLOCK_SIZE, 
-                                                                                    dev_tempbuff, 
-                                                                                    dev_ptr[i]);
-                }
-                temp_size = grid_size[i];
-            }
-            // Scatter the offset to the original array
-            for(int i = level - 2; i >= 0; i--){
-                Common::kernAddOffset<<<grid_size[i], BLOCK_SIZE>>>(grid_size[i] * BLOCK_SIZE, dev_ptr[i], dev_ptr[i+1]);
+            kernInclusiveScanPerBlock << <grid_size[0], half_block_size >> > (n, 1, dev_odata, dev_idata);
+            for(int i = 1; i < level; i++){
+                kernInclusiveScanPerBlock<<<grid_size[i], half_block_size>>>(grid_size[i-1], BLOCK_SIZE, dev_ptr[i], dev_ptr[i-1]);
             }
 
-            // Copy the result to the host
-            cudaMemcpy(dev_odata, dev_ptr[0], n*sizeof(int), cudaMemcpyDeviceToDevice);
-            checkCUDAError("cudaMemcpy odata failed!");
+            // Scatter the offset to the original array
+            for(int i = level - 1; i > 0; i--){
+                Common::kernAddOffset<<<grid_size[i-1], BLOCK_SIZE>>>(grid_size[i-1] * BLOCK_SIZE, dev_ptr[i-1], dev_ptr[i]);
+            }
 
             // Free the memory
-            for(int i = 0; i < level; i++){
+            for(int i = 1; i < level; i++){
                 cudaFree(dev_ptr[i]);
             }
-            cudaFree(dev_tempbuff);
             delete[] dev_ptr;
             delete[] grid_size;
         }
@@ -141,58 +129,28 @@ namespace StreamCompaction {
          * Performs prefix-sum (aka scan) on idata, storing the result into odata.
          */
         void scan(int n, int *odata, const int *idata) {
-            // Malloc different level of memory
-            int level = (ilog2ceil(n)+7)/8;
-            int** dev_ptr = new int*[level];
-            int* grid_size = new int[level];
-            int len = n;
-            for(int i = 0; i < level; i++){
-                grid_size[i] = (len + BLOCK_SIZE - 1) / BLOCK_SIZE;
-                cudaMalloc((void**)&dev_ptr[i], grid_size[i] * BLOCK_SIZE * sizeof(int));
-                checkCUDAError("cudaMalloc dev_ptr failed!");
-                cudaMemset(dev_ptr[i], 0, grid_size[i] * BLOCK_SIZE * sizeof(int));
-                len = grid_size[i];
-            }
-            int* dev_tempbuff;
-            int temp_size = n;
-            cudaMalloc((void**)&dev_tempbuff, temp_size*sizeof(int));
-            checkCUDAError("cudaMalloc dev_tempbuff failed!");
-            cudaMemcpy(dev_tempbuff, idata, temp_size*sizeof(int), cudaMemcpyHostToDevice);
+            int* dev_idata, *dev_odata;
+            int size = (n + BLOCK_SIZE - 1) / BLOCK_SIZE;
+            size *= BLOCK_SIZE;
+            cudaMalloc((void**)&dev_idata, size * sizeof(int));
+            checkCUDAError("cudaMalloc dev_idata failed!");
+            cudaMemset(dev_idata, 0, size * sizeof(int));
+            cudaMalloc((void**)&dev_odata, size * sizeof(int));
+            checkCUDAError("cudaMalloc dev_odata failed!");
+            cudaMemset(dev_odata, 0, size * sizeof(int));
+
+            cudaMemcpy(dev_idata, idata, n*sizeof(int), cudaMemcpyHostToDevice);
             checkCUDAError("cudaMemcpy idata failed!");
 
             timer().startGpuTimer();
-
-            // Scan each block in different level
-            dim3 half_block_size(BLOCK_SIZE/2);
-            for(int i = 0; i < level; i++){
-                kernInclusiveScanPerBlock<<<grid_size[i], half_block_size>>>(temp_size, dev_ptr[i], dev_tempbuff);
-                // Gather the last element of each block
-                if(i < level - 1){
-                    Common::kernExtractLastElementPerBlock<<<grid_size[i+1], BLOCK_SIZE>>>( grid_size[i], 
-                                                                                    BLOCK_SIZE, 
-                                                                                    dev_tempbuff, 
-                                                                                    dev_ptr[i]);
-                }
-                temp_size = grid_size[i];
-            }
-            // Scatter the offset to the original array
-            for(int i = level - 2; i >= 0; i--){
-                Common::kernAddOffset<<<grid_size[i], BLOCK_SIZE>>>(grid_size[i] * BLOCK_SIZE, dev_ptr[i], dev_ptr[i+1]);
-            }
-
+            scanOnDevice(size, dev_odata, dev_idata);
             timer().endGpuTimer();
 
-            // Copy the result to the host
-            cudaMemcpy(odata, dev_ptr[0], n*sizeof(int), cudaMemcpyDeviceToHost);
+            cudaMemcpy(odata, dev_odata, n*sizeof(int), cudaMemcpyDeviceToHost);
             checkCUDAError("cudaMemcpy odata failed!");
-            
-            // Free the memory
-            for(int i = 0; i < level; i++){
-                cudaFree(dev_ptr[i]);
-            }
-            cudaFree(dev_tempbuff);
-            delete[] dev_ptr;
-            delete[] grid_size;
+
+            cudaFree(dev_idata);
+            cudaFree(dev_odata);
         }
 
         /**
@@ -205,10 +163,55 @@ namespace StreamCompaction {
          * @returns      The number of elements remaining after compaction.
          */
         int compact(int n, int *odata, const int *idata) {
+            int count = 0;
+            int final_bool = 0;
+            int* dev_idata, *dev_bools, *dev_indices;
+            int* dev_odata;
+
+            int gird_size = (n + BLOCK_SIZE - 1) / BLOCK_SIZE;
+            int size = gird_size * BLOCK_SIZE;
+            // Malloc the memory
+            cudaMalloc((void**)&dev_idata, size * sizeof(int));
+            checkCUDAError("cudaMalloc dev_idata failed!");
+            cudaMemset(dev_idata, 0, size * sizeof(int));
+
+            cudaMalloc((void**)&dev_bools, size * sizeof(int));
+            checkCUDAError("cudaMalloc dev_bools failed!");
+            cudaMemset(dev_bools, 0, size * sizeof(int));
+
+            cudaMalloc((void**)&dev_indices, size * sizeof(int));
+            checkCUDAError("cudaMalloc dev_indices failed!");
+            cudaMemset(dev_indices, 0, size * sizeof(int));
+
+            cudaMalloc((void**)&dev_odata, size * sizeof(int));
+            checkCUDAError("cudaMalloc dev_odata failed!");
+            cudaMemset(dev_odata, 0, size * sizeof(int));
+
+            // Copy the data to the device
+            cudaMemcpy(dev_idata, idata, n*sizeof(int), cudaMemcpyHostToDevice);
+
             timer().startGpuTimer();
-            // TODO
+
+            // Map to boolean
+            Common::kernMapToBoolean<<<gird_size, BLOCK_SIZE>>>(n, dev_bools, dev_idata);
+
+            // Scan the boolean array
+            scanOnDevice(size, dev_indices, dev_bools);
+
+            // Scatter the data
+            Common::kernScatter<<<gird_size, BLOCK_SIZE>>>(n, dev_odata, dev_idata, dev_bools, dev_indices);
             timer().endGpuTimer();
-            return -1;
+
+            // Copy the data back to the host
+            cudaMemcpy(odata, dev_odata, n*sizeof(int), cudaMemcpyDeviceToHost);
+            cudaMemcpy(&count, dev_indices + n - 1, sizeof(int), cudaMemcpyDeviceToHost);
+            cudaMemcpy(&final_bool, dev_bools + n - 1, sizeof(int), cudaMemcpyDeviceToHost);
+            count += final_bool;
+            cudaFree(dev_idata);
+            cudaFree(dev_bools);
+            cudaFree(dev_indices);
+            cudaFree(dev_odata);
+            return count;
         }
     }
 }
