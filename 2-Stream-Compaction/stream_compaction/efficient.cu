@@ -20,7 +20,7 @@ namespace StreamCompaction {
         * n: the number of blocks in idata
         * s: the stride of the block in idata
         */
-        __global__ void kernInclusiveScanPerBlock(int n, int s, int* odata, const int* idata){
+        __global__ void kernExclusiveScanPerBlock(int n, int s, int* odata, const int* idata){
             int tid = threadIdx.x;
             int tid2 = tid*2;
             int global_base = blockIdx.x * BLOCK_SIZE;
@@ -107,9 +107,9 @@ namespace StreamCompaction {
 
             // Scan each block in different level
             dim3 half_block_size(BLOCK_SIZE/2);
-            kernInclusiveScanPerBlock << <grid_size[0], half_block_size >> > (n, 1, dev_odata, dev_idata);
+            kernExclusiveScanPerBlock << <grid_size[0], half_block_size >> > (n, 1, dev_odata, dev_idata);
             for(int i = 1; i < level; i++){
-                kernInclusiveScanPerBlock<<<grid_size[i], half_block_size>>>(grid_size[i-1], BLOCK_SIZE, dev_ptr[i], dev_ptr[i-1]);
+                kernExclusiveScanPerBlock<<<grid_size[i], half_block_size>>>(grid_size[i-1], BLOCK_SIZE, dev_ptr[i], dev_ptr[i-1]);
             }
 
             // Scatter the offset to the original array

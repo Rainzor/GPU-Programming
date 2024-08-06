@@ -17,7 +17,7 @@ namespace StreamCompaction {
         * @parms
         * n: the number of elements in idata
         */
-        __global__ void kernInclusiveScanPerBlock(int n, int* odata, const int* idata){
+        __global__ void kernExclusiveScanPerBlock(int n, int* odata, const int* idata){
             int tid = threadIdx.x;
             int bid = blockIdx.x;
             int gid = bid * blockDim.x + tid;
@@ -67,7 +67,7 @@ namespace StreamCompaction {
 
             // Scan each block in different level
             for(int i = 0; i < level; i++){
-                kernInclusiveScanPerBlock<<<grid_size[i], BLOCK_SIZE>>>(temp_size, dev_ptr[i], dev_tempbuff);
+                kernExclusiveScanPerBlock<<<grid_size[i], BLOCK_SIZE>>>(temp_size, dev_ptr[i], dev_tempbuff);
                 // Gather the last element of each block
                 if(i < level - 1){
                     Common::kernExtractLastElementPerBlock<<<grid_size[i+1], BLOCK_SIZE>>>( grid_size[i], 
