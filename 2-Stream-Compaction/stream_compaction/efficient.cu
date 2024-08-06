@@ -86,6 +86,57 @@ namespace StreamCompaction {
             odata[gid] = (tid < blockDim.x - 1) ? buffer[bi] : sum;
         }
 
+        void scanOnDevice(int n, int*dev_odata, const int*dev_idata){
+            // Malloc different level of memory
+            int level = (ilog2ceil(n)+7)/8;
+            int** dev_ptr = new int*[level];
+            int* grid_size = new int[level];
+            int len = n;
+            for(int i = 0; i < level; i++){
+                grid_size[i] = (len + BLOCK_SIZE - 1) / BLOCK_SIZE;
+                cudaMalloc((void**)&dev_ptr[i], grid_size[i] * BLOCK_SIZE * sizeof(int));
+                checkCUDAError("cudaMalloc dev_ptr failed!");
+                cudaMemset(dev_ptr[i], 0, grid_size[i] * BLOCK_SIZE * sizeof(int));
+                len = grid_size[i];
+            }
+            int* dev_tempbuff;
+            int temp_size = n;
+            cudaMalloc((void**)&dev_tempbuff, temp_size*sizeof(int));
+            checkCUDAError("cudaMalloc dev_tempbuff failed!");
+            cudaMemcpy(dev_tempbuff, dev_idata, temp_size*sizeof(int), cudaMemcpyDeviceToDevice);
+            checkCUDAError("cudaMemcpy idata failed!");
+
+            // Scan each block in different level
+            dim3 half_block_size(BLOCK_SIZE/2);
+            for(int i = 0; i < level; i++){
+                kernInclusiveScanPerBlock<<<grid_size[i], half_block_size>>>(temp_size, dev_ptr[i], dev_tempbuff);
+                // Gather the last element of each block
+                if(i < level - 1){
+                    Common::kernExtractLastElementPerBlock<<<grid_size[i+1], BLOCK_SIZE>>>( grid_size[i], 
+                                                                                    BLOCK_SIZE, 
+                                                                                    dev_tempbuff, 
+                                                                                    dev_ptr[i]);
+                }
+                temp_size = grid_size[i];
+            }
+            // Scatter the offset to the original array
+            for(int i = level - 2; i >= 0; i--){
+                Common::kernAddOffset<<<grid_size[i], BLOCK_SIZE>>>(grid_size[i] * BLOCK_SIZE, dev_ptr[i], dev_ptr[i+1]);
+            }
+
+            // Copy the result to the host
+            cudaMemcpy(dev_odata, dev_ptr[0], n*sizeof(int), cudaMemcpyDeviceToDevice);
+            checkCUDAError("cudaMemcpy odata failed!");
+
+            // Free the memory
+            for(int i = 0; i < level; i++){
+                cudaFree(dev_ptr[i]);
+            }
+            cudaFree(dev_tempbuff);
+            delete[] dev_ptr;
+            delete[] grid_size;
+        }
+
         /**
          * Performs prefix-sum (aka scan) on idata, storing the result into odata.
          */
