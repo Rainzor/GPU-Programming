@@ -52,7 +52,7 @@ The overview of the pipeline is as follows:
    ```
 
 <p align="center">
-<img src="assets/image-20240807232717946.png" alt="image-20240807232717946" width="200" height="100" />
+<img src="assets/image-20240807232717946.png" alt="image-20240807232717946"/>
 </p>
 ## CUDA Acceleration
 
