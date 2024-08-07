@@ -9,7 +9,7 @@ CUDA Stream Compaction
 This project is the CUDA implementation of Prefix-Sum (Scan) algorithm and Stream Compaction algorithm. The later algorithm is based the former one.
 
 <p align="center">
-  <img src="assets/scan_shared.png" width="300" height="350" />
+  <img src="assets/scan_shared.png" width="70%" height="70%" />
 </p>
 
 ## Introduction
@@ -31,7 +31,7 @@ An exclusive scan can be generated from an inclusive scan by shifting the result
 **Example:**  Add Operation
 
 <p align="center">
-  <img src="assets/image-20240807232016672.png" style="zoom: 67%;" />
+  <img src="assets/image-20240807232016672.png" width="70%" height="70%" />
 </p>
 
 ### Stream Compact
@@ -52,7 +52,7 @@ The overview of the pipeline is as follows:
    ```
 
 <p align="center">
-<img src="assets/image-20240807232717946.png" alt="image-20240807232717946" style="zoom: 80%;" />
+<img src="assets/image-20240807232717946.png" alt="image-20240807232717946" width="75%" height="75%" />
 </p>
 ## CUDA Acceleration
 
@@ -79,7 +79,7 @@ end for
 ```
 
 <p align="center">
-<img src="assets/image-20240808003859711.png" alt="image-20240808003859711" style="zoom: 67%;" />
+<img src="assets/image-20240808003859711.png" alt="image-20240808003859711" width="70%" height="70%" />
 </p>
 
 In implementation of CUDA, not all threads run simultaneously for arrays larger than the warp size. *Algorithm 1* will not work, because it performs the scan in place on the array. Instead, we can create two device arrays and swap them at each iteration to avoid race conditions. (Just like ping-pong buffers)
