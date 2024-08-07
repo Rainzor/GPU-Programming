@@ -87,6 +87,7 @@ In implementation of CUDA, not all threads run simultaneously for arrays larger 
 The result of naive parallel scan is the inclusive scan. And it's available to use in arbitrary sized array (non-power-of-two).
 
 The problem with *Algorithm 1* is apparent if we examine its work complexity. The algorithm performs $O(n \log n)$ addition operations.
+
 $$
 \sum_{d=1}^{\log n} n-2^{d-1} = O(n\log n - n)=O(n\log n)
 $$
