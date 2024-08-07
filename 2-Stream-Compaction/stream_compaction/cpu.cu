@@ -16,9 +16,9 @@ namespace StreamCompaction {
         * CPU scan core function.
         * This function runs without starting CPU timer.
         */
-        void scan_core(int n, int *odata, const int *idata) {
+        void scan_core(uint32_t n, int *odata, const int *idata) {
             odata[0] = 0;
-            for (int i = 1; i < n; i++) {
+            for (uint32_t i = 1; i < n; i++) {
                 odata[i] = odata[i - 1] + idata[i - 1];
             }
         }
@@ -28,7 +28,7 @@ namespace StreamCompaction {
          * For performance analysis, this is supposed to be a simple for loop.
          * (Optional) For better understanding before starting moving to GPU, you can simulate your GPU scan in this function first.
          */
-        void scan(int n, int *odata, const int *idata) {
+        void scan(uint32_t n, int *odata, const int *idata) {
             timer().startCpuTimer();
             scan_core(n, odata, idata);
             timer().endCpuTimer();
@@ -39,10 +39,10 @@ namespace StreamCompaction {
          *
          * @returns the number of elements remaining after compaction.
          */
-        int compactWithoutScan(int n, int *odata, const int *idata) {
+        int compactWithoutScan(uint32_t n, int *odata, const int *idata) {
             timer().startCpuTimer();
-            int count = 0;
-            for (int i = 0; i < n; i++) {
+            uint32_t count = 0;
+            for (uint32_t i = 0; i < n; i++) {
                 if (idata[i] != 0) {
                     odata[count] = idata[i];
                     count++;
@@ -56,20 +56,20 @@ namespace StreamCompaction {
          *
          * @returns the number of elements remaining after compaction.
          */
-        int compactWithScan(int n, int *odata, const int *idata) {
+        int compactWithScan(uint32_t n, int *odata, const int *idata) {
             timer().startCpuTimer();
             int* boolBuffer = new int[n];
             int* scanBuffer = new int[n];
             // Map to boolean
-            for (int i = 0; i < n; i++) {
+            for (uint32_t i = 0; i < n; i++) {
                 boolBuffer[i] = idata[i] != 0 ? 1 : 0;
             }
             // Exclusive scan
             scan_core(n, scanBuffer, boolBuffer);
-            int count = scanBuffer[n-1] + boolBuffer[n-1];
+            uint32_t count = scanBuffer[n-1] + boolBuffer[n-1];
 
             // Scatter
-            for (int i = 0; i < n; i++) {
+            for (uint32_t i = 0; i < n; i++) {
                 if (boolBuffer[i] == 1) {
                     odata[scanBuffer[i]] = idata[i];
                 }

@@ -6,10 +6,10 @@ namespace StreamCompaction {
     namespace CPU {
         StreamCompaction::Common::PerformanceTimer& timer();
 
-        void scan(int n, int *odata, const int *idata);
+        void scan(uint32_t n, int *odata, const int *idata);
 
-        int compactWithoutScan(int n, int *odata, const int *idata);
+        int compactWithoutScan(uint32_t n, int *odata, const int *idata);
 
-        int compactWithScan(int n, int *odata, const int *idata);
+        int compactWithScan(uint32_t n, int *odata, const int *idata);
     }
 }

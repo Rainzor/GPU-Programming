@@ -48,6 +48,16 @@ namespace StreamCompaction {
             dst[idx] += src[blockIdx.x];
         }
 
+        /*
+        * Shift the array to the right, the first element is Identity element
+        */
+        __global__ void kernShiftRight(int n, int* odata, const int* idata){
+            int idx = blockIdx.x * blockDim.x + threadIdx.x;
+            if(idx >= n)
+                return;
+            odata[idx] = idx == 0 ? 0 : idata[idx - 1];
+        }
+
         /**
          * Maps an array to an array of 0s and 1s for stream compaction. Elements
          * which map to 0 will be removed, and elements which map to 1 will be kept.
@@ -64,11 +74,11 @@ namespace StreamCompaction {
          * if bools[idx] == 1, it copies idata[idx] to odata[indices[idx]].
          */
         __global__ void kernScatter(int n, int *odata,
-                const int *idata, const int *bools, const int *indices) {
+                const int *idata, const int *indices) {
             int idx = blockIdx.x * blockDim.x + threadIdx.x;
             if(idx >= n)
                 return;
-            if(bools[idx] == 1){
+            if(idata[idx] != 0){
                 odata[indices[idx]] = idata[idx];
 			}
         }
