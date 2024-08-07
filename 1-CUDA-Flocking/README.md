@@ -43,7 +43,7 @@ The objective of this project would be to build a flocking simulation using CUDA
 
 ## Algorithm: CUDA Acceleration
 
-The simulation is based on  the **Reynolds Boids algorithm**, along with three levels of optimization. More details is in [INSTRUCTION](./INSTRUCTION.md). If you want to change the algorithm for flocking simulation, you need to set `UNIFORM_GRID` and `COHERENT_GRID` in [**src/main.cpp**](./src/main.cpp) .
+The simulation is based on  the **Reynolds Boids algorithm**, along with three levels of optimization. More details are in [INSTRUCTION](./INSTRUCTION.md). If you want to change the algorithm for flocking simulation, you need to set `UNIFORM_GRID` and `COHERENT_GRID` in [**src/main.cpp**](./src/main.cpp) .
 
 <p align="center">
   <img src="assets/output.png" width="350" height="350" />

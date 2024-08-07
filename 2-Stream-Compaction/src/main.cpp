@@ -301,8 +301,8 @@ int main(int argc, char *argv[]) {
     a[SIZE - 1] = 0;
     printArray(SIZE, a, true);
 
-    createDateset();
-    // printTest();
+    printTest();
+    // createDateset();
 
     delete[] a;
     delete[] b;
