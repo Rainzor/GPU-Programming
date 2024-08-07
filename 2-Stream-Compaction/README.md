@@ -48,7 +48,7 @@ The overview of the pipeline is as follows:
 
    ```c++
    if(mask[i]==1)
-   	output[index[i]]=input[i];
+     output[index[i]]=input[i];
    ```
 
 <p align="center">
@@ -74,11 +74,13 @@ for d = 0 to log2(n)-1:
   for all k in parallel:
     if (k >= stride)
       x[k] = x[k – stride] + x[k];
-	end for
+  end for
 end for
 ```
 
+<p align="center">
 <img src="assets/image-20240808003859711.png" alt="image-20240808003859711" style="zoom: 67%;" />
+</p>
 
 In implementation of CUDA, not all threads run simultaneously for arrays larger than the warp size. *Algorithm 1* will not work, because it performs the scan in place on the array. Instead, we can create two device arrays and swap them at each iteration to avoid race conditions. (Just like ping-pong buffers)
 
