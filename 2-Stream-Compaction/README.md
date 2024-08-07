@@ -9,7 +9,7 @@ CUDA Stream Compaction
 This project is the CUDA implementation of Prefix-Sum (Scan) algorithm and Stream Compaction algorithm. The later algorithm is based the former one.
 
 <p align="center">
-  <img src="assets/scan_shared.png" />
+  <img src="assets/scan_shared.png" width="300" />
 </p>
 
 ## Introduction
