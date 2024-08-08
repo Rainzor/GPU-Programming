@@ -285,7 +285,8 @@ We also use CUDA thrust library function `thrust::exclusive_scan(first, last, re
 
 The size of data contains power-of-two $[2^{12},2^{13},...,2^{29}]$ and non-power-of-two $5/8*[2^{12},2^{13},...,2^{29}]$.
 
-It is evident that the *Work-Efficient* method performs better than the *Naive* method. However, it faces challenges when dealing with non-power-of-two (NPOT) data. By employing the *divide and conquer* strategy and applying it in Shared Memory (SM), the results are comparable to the baseline implementation provided by the `thrust` library.
+It is evident that the *Work-Efficient* method performs better than the *Naive* method. However, it suffers from severe instability
+ when dealing with non-power-of-two (NPOT) data. By employing the *divide and conquer* strategy and applying it in Shared Memory (SM), the results are comparable to the baseline implementation provided by the `thrust` library.
 
 ### Stream Compaction
 
