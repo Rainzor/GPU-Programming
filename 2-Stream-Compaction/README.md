@@ -59,9 +59,11 @@ The overview of the pipeline is as follows:
 
 The project mainly focus on the acceleration of **scan** by some parallel algorithms and takes the advantage of the CUDA Architecture. So the features of the project are as follow. :laughing: 
 
-:star: A naive parallel scan algorithm (Hillis and Steele, 1986) taking $O(n \log n)$ addition operations. **Ping-pong buffers** are used to avoid race conditions.
+:star: A naive parallel scan algorithm (Hillis and Steele, 1986) taking $O(n \log n)$ addition operations. 
+	**Ping-pong buffers** are used to avoid race conditions.
 
-:star: A work-efficient parallel scan algorithm (Blelloch, 1990) taking $O(n)$ addition operations. CUDA implementation takes **warp divergence** in consideration.
+:star: A work-efficient parallel scan algorithm (Blelloch, 1990) taking $O(n)$ addition operations. 
+	CUDA implementation takes **warp divergence** in consideration.
 
 :star: ​Divide & Conquer strategy for **arbitrary sized** input arrays.
 
@@ -308,6 +310,7 @@ If we compare *scan* in CPU, GPU Work-Efficient and Thrust implement, we can see
     passed
 ==== thrust scan, power-of-two ====
    elapsed time: 18.6464ms    (CUDA Measured)
+    [   0   9  48  96 137 169 205 219 255 267 312 322 368 ... 263704909 263704920 ]
     passed
 ```
 
@@ -319,7 +322,7 @@ The GPU versions both accelerate the CPU *scan*. However, our work-efficient met
 
 The bottom row of the visualization represents the CUDA usage, where green indicates data copying from the host to the device, red represents data copying from the device to the host, and blue represents the time when the kernel is running. It is noticeable that the green and red data usage is approximately equal since data needs to be transferred to and from the GPU. 
 
-However, our method takes about double the time in kernels compared to Thrust. This is primarily due to the additional time spent on adding `InCR[i]` to each block through global memory, which is the main factor contributing to the increased time cost. :thinking:
+However, our method takes about double the time in kernels compared to Thrust. This is primarily due to the additional time spent on adding `INCR[i]` to each block through global memory, which is the main factor contributing to the increased time cost. :thinking:
 
 ## Reference
 
