@@ -11,6 +11,7 @@ This project is the CUDA implementation of Prefix-Sum (Scan) algorithm and Strea
 <p align="center">
   <img src="assets/scan.png" width="400" />
 </p>
+
 ## Introduction
 
 ### 1. Scan
@@ -53,6 +54,7 @@ The overview of the pipeline is as follows:
 <p align="center">
 <img src="assets/image-20240807232717946.png" alt="image-20240807232717946"/>
 </p>
+
 ## CUDA Acceleration
 
 The project mainly focus on the acceleration of **scan** by some parallel algorithms and takes the advantage of the CUDA Architecture. So the features of the project are as follow. :laughing: 
