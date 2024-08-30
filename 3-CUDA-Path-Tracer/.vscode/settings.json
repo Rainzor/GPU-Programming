@@ -1,0 +1,7 @@
+{
+    "files.associations": {
+        "*m": "matlab",
+        ".cu": "cuda",
+        "ios": "cpp"
+    }
+}

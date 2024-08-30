@@ -303,7 +303,7 @@ void pathtrace(uchar4* pbo, int frame, int iter) {
 	// 1D block for path tracing
 	const int blockSize1d = 128;
 
-	///////////////////////////////////////////////////////////////////////////
+	//-------------------------------------------------------------------------
 
 	// Recap:
 	// * Initialize array of path rays (using rays that come out of the camera)
@@ -392,7 +392,7 @@ void pathtrace(uchar4* pbo, int frame, int iter) {
 	dim3 numBlocksPixels = (pixelcount + blockSize1d - 1) / blockSize1d;
 	finalGather << <numBlocksPixels, blockSize1d >> > (num_paths, dev_image, dev_paths);
 
-	///////////////////////////////////////////////////////////////////////////
+	//-------------------------------------------------------------------------
 
 	// Send results to OpenGL buffer for rendering
 	sendImageToPBO << <blocksPerGrid2d, blockSize2d >> > (pbo, cam.resolution, iter, dev_image);
