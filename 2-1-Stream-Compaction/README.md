@@ -5,6 +5,7 @@ CUDA Stream Compaction
 
 * Runze Wang
 * Tested on: Windows 22, VS2019, CUDA12.2, RTX4060
+* **Keywords:** Warp Divergence, Divide & Conquer, Shared Memory, Bank Conflicts
 
 This project is the CUDA implementation of Prefix-Sum (Scan) algorithm and Stream Compaction algorithm. The later algorithm is based the former one.
 
