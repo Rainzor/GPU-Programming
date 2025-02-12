@@ -59,14 +59,14 @@ The simulation is based on  the **Reynolds Boids algorithm**, along with three l
   
   ```c++
   Algorithm StepSimulation(vel1, vel2, pos, N=N_particle):
-  	// === 1. Compute new velocities in parallel, writing results to vel2 ===
-  	par-for i in [0, N-1]:
+	// === 1. Compute new velocities in parallel, writing results to vel2 ===
+	par-for i in [0, N-1]:
 		newVel = (0, 0, 0)
-  		for j in [0, N-1]:
-  			distance = length(pos[j] - pos[i])           
-  			if distance > 0 && distance < MAX_DISTANCE:
-  				continue
-  			newVel += ComputeVelocityChange(pos ,vel1, i, j)
+		for j in [0, N-1]:
+			distance = length(pos[j] - pos[i])           
+			if distance > 0 && distance < MAX_DISTANCE:
+				continue
+			newVel += ComputeVelocityChange(pos ,vel1, i, j)
          
 		// Combine with current velocity
 		newVel = vel1[i] + newVel
@@ -77,7 +77,7 @@ The simulation is based on  the **Reynolds Boids algorithm**, along with three l
 		swap(vel1, vel2)
   
 		// === 3. Update positions using the new velocities (vel1) ===
-  		par-for i in [0, N-1]:
+		par-for i in [0, N-1]:
 			pos[i] = pos[i] + vel1[i] * dt
   ```
 
