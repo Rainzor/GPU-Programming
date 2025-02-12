@@ -63,10 +63,10 @@ The simulation is based on  the **Reynolds Boids algorithm**, along with three l
      	par-for i in [0, N-1]:
           newVel = (0, 0, 0)
           for j in [0, N-1]:
-             	distance = length(pos[j] - pos[i])           
+	  	distance = length(pos[j] - pos[i])           
              	if distance > 0 && distance < MAX_DISTANCE:
-              	continue
-  			newVel += ComputeVelocityChange(pos ,vel1, i, j)
+	    		continue
+  		newVel += ComputeVelocityChange(pos ,vel1, i, j)
          
           // Combine with current velocity
           newVel = vel1[i] + newVel
@@ -97,7 +97,7 @@ The simulation is based on  the **Reynolds Boids algorithm**, along with three l
   ```c++
   Algorithm StepSimulationScatteredGrid(vel1, vel2, pos, N_particle, N_cell):
       // === 1. Label particles with their grid and array indices in parallel ===
-  	cellIndices = int[N_particle]
+      cellIndices = int[N_particle]
       arrayIndices = int[N_particle]
       cellRanges = int2[N_cell]
           
