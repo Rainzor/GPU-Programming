@@ -73,12 +73,12 @@ The simulation is based on  the **Reynolds Boids algorithm**, along with three l
 		// Write the updated velocity to vel2
 		vel2[i] = newVel
   
-	    // === 2. "Ping-Pong": swap velocity buffers ===
-	    swap(vel1, vel2)
+		// === 2. "Ping-Pong": swap velocity buffers ===
+		swap(vel1, vel2)
   
-	    // === 3. Update positions using the new velocities (vel1) ===
-      par-for i in [0, N-1]:
-	        pos[i] = pos[i] + vel1[i] * dt
+		// === 3. Update positions using the new velocities (vel1) ===
+  		par-for i in [0, N-1]:
+			pos[i] = pos[i] + vel1[i] * dt
   ```
 
 ### Uniform Grid
@@ -108,8 +108,7 @@ The simulation is based on  the **Reynolds Boids algorithm**, along with three l
   
       // === 2. Sort particles by their cell index ===
       SortByKey(key = cellIndices, value = arrayIndices)
-  	
-      // === 3. Identify the start and end indices for each cell ===
+	  // === 3. Identify the start and end indices for each cell ===
       par-for i in [0, N_particle-1]:
           cellIdx = cellIndices[i]
           // Initialize the first element of the cell range
@@ -144,7 +143,7 @@ Algorithm StepSimulationCoherentGrid(vel1, vel2, pos, N_particle, N_cell):
 	...
 	// === 2. Sort particles by their cell index ===
 	...
-    // === 3. Identify the start and end indices for each cell ===
+	// === 3. Identify the start and end indices for each cell ===
 	...         
 	// === 4. Rearrange the particle data to improve spatial locality ===
 	Gather(arrayIndices, pos, pos_gathered)
