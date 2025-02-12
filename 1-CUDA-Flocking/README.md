@@ -3,7 +3,7 @@ Project 1 - Flocking**
 
 * Runze Wang
 * Tested on: Windows 22、VS2022、CUDA12.3、RTX4060
-* ==**Keywords**: Read-Write Conflicts、Space-Time Trade Off、Spatial Locality==
+* **Keywords**: Read-Write Conflicts、Space-Time Trade Off、Spatial Locality
 
 This project is a CUDA implementation of Boid, an artificial life program that simulates fishes or birds’ flocking behaviors. The simulation is visualized by OpenGL.
 <p align="center">
