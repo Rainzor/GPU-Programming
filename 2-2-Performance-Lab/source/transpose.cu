@@ -13,8 +13,8 @@
 #include <string>
 
 // Initialize sizes
-const int sizeX = 1234;
-const int sizeY = 3153;
+const int sizeX = 12340;
+const int sizeY = 31530;
 
 struct DIMS
 {

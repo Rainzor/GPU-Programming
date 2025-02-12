@@ -34,9 +34,16 @@ Please ask me or the TAs ahead of time if you have trouble compiling the code. W
 
 * In the interest of time, we will not be writing code from scratch of these during the lab. So it is in your best interest to complete the code before the lab.
     * This will let you review how transpose with shared memory works. So when we write more advance kernel that build on these, you will know what changes we are making.
+    
 * The sections you need to work on are marked by `TODO: COMPLETE THIS`.
     * There are 3 kernels you need to write, and 3 `blocks`/`grids` configurations you need to set up.
-* Once completed, your output should look like this: ![](images/starter-1.png)
+    
+* Once completed, your output should look like this: 
+
+<p align="center">
+  <img src="assets/image-20250212174623690.png" width= 70% />
+</p>
+
 
 #### Third Party Code
 
