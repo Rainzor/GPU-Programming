@@ -226,6 +226,7 @@ void runCUDA() {
     Boids::stepSimulationNaive(DT);
 #endif
 
+	// copy the data back from device to the VBO positions
     if(visualize){
         Boids::copyBoidsToVBO(dptrVertPositions, dptrVertVelocities);
     }

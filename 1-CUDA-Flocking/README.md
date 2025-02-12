@@ -2,7 +2,8 @@
 Project 1 - Flocking**
 
 * Runze Wang
-* Tested on: Windows 22, VS2019, CUDA12.2, RTX4060
+* Tested on: Windows 22、VS2022、CUDA12.3、RTX4060
+* ==**Keywords**: Read-Write Conflicts、Space-Time Trade Off、Spatial Locality==
 
 This project is a CUDA implementation of Boid, an artificial life program that simulates fishes or birds’ flocking behaviors. The simulation is visualized by OpenGL.
 <p align="center">
@@ -43,7 +44,7 @@ The objective of this project would be to build a flocking simulation using CUDA
 
 ## Algorithm: CUDA Acceleration
 
-The simulation is based on  the **Reynolds Boids algorithm**, along with three levels of optimization. More details are in [INSTRUCTION](./INSTRUCTION.md). If you want to change the algorithm for flocking simulation, you need to set `UNIFORM_GRID` and `COHERENT_GRID` in [**src/main.cpp**](./src/main.cpp) .
+The simulation is based on  the **Reynolds Boids algorithm**, along with three levels of optimization. More details are in [INSTRUCTION](./INSTRUCTION.md). If you want to change the **ALGORITHM** for flocking simulation, you need to set `UNIFORM_GRID` and `COHERENT_GRID` in [**src/main.cpp**](./src/main.cpp) .
 
 <p align="center">
   <img src="assets/output.png" width="350" height="350" />
@@ -52,24 +53,107 @@ The simulation is based on  the **Reynolds Boids algorithm**, along with three l
 ### Brute Force
 
 - ping-pong buffers: **avoid read & write conflict and hide latency with the SIMT of CUDA.**
-  - While one buffer provides output, the other buffer can be written asynchronously. 
-  - Switch over when required.
+  - While one buffer (warp) provides output, the other buffer (warp) can be written asynchronously. 
+  - Switch over when required.''
+  - $O(N)$
+  
+  ```c++
+  Algorithm StepSimulation(vel1, vel2, pos, N=N_particle):
+      // === 1. Compute new velocities in parallel, writing results to vel2 ===
+     	par-for i in [0, N-1]:
+          newVel = (0, 0, 0)
+          for j in [0, N-1]:
+             	distance = length(pos[j] - pos[i])           
+             	if distance > 0 && distance < MAX_DISTANCE:
+              	continue
+  			newVel += ComputeVelocityChange(pos ,vel1, i, j)
+         
+          // Combine with current velocity
+          newVel = vel1[i] + newVel
+          // Write the updated velocity to vel2
+          vel2[i] = newVel
+  
+      // === 2. "Ping-Pong": swap velocity buffers ===
+      swap(vel1, vel2)
+                 
+      // === 3. Update positions using the new velocities (vel1) ===
+      par-for i in [0, N-1]:
+          pos[i] = pos[i] + vel1[i] * dt
+  ```
 
 ### Uniform Grid
 
-- uniform spatial grid: **avoid global loop for checking every other boid.**
+- uniform spatial grid: **space–time trade off that use extra space to avoid global loop for checking every other boid.**
   - Label every boid with an index key representing its enclosing cell.
   - Sort the key & value array.
   - Create the start & end array representing the border of the two different cells.
   - `thrust::sort_by_key`: sorting the value based on the key.
+  - $O(N_{\text{particle}}/N_{\text{cell}})\sim O(N_\text{particle})$
+  
+  <p align="center">
+    <img src="assets/Boids%20Ugrid%20neighbor%20search%20shown.png" width="350" height="350" />
+  </p>
+  
+  ```c++
+  Algorithm StepSimulationScatteredGrid(vel1, vel2, pos, N_particle, N_cell):
+      // === 1. Label particles with their grid and array indices in parallel ===
+  	cellIndices = int[N_particle]
+      arrayIndices = int[N_particle]
+      cellRanges = int2[N_cell]
+          
+      par-for i in [0, N_particle-1]:
+          cellIdx = ComputeCelldIndex(pos, i)
+          cellIndices[i] = cellIdx
+          arrayIndices[i] = i
+  
+      // === 2. Sort particles by their cell index ===
+      SortByKey(key = cellIndices, value = arrayIndices)
+  	
+      // === 3. Identify the start and end indices for each cell ===
+      par-for i in [0, N_particle-1]:
+          cellIdx = cellIndices[i]
+          // Initialize the first element of the cell range
+          if i == 0 or cellIdx != cellIndices[i-1]:
+              cellRanges[cellIdx].x = i
+  
+          // Update the end index of the previous cell
+          if i > 0 and cellIdx != cellIndices[i-1]:
+              cellRanges[cellIndices[i-1]].y = i
+  
+          // Update the last particle's range
+          if i == N_particle - 1:
+              cellRanges[cellIdx].y = N_particle
+  
+      // === 4. Update velocities using neighbor search with the uniform grid === 
+  	StepSimulationCell(vel1, vel2, pos, N_particle, cellRanges, arrayIndices)
+  ```
+  
 
 ### Coherent Grid
 
 - semi-coherent memory access: **spatial locality that lead load data to the warp chuck by chuck.**
-  -  Rearranging the boid data so that all the velocities and positions of boids in one cell are also contiguous in memory. As the SM execute a warp, the data nearby will be loaded  at the same time.
+  -  **Rearranging** the boid data so that all the **velocities and positions** of boids in one cell are also contiguous in memory. As the SM execute a warp, the data nearby will be loaded  at the same time.
   -  `thrust::gather`：rearranging  the data according to index buffer.
+  -  $O(N_{\text{particle}}/N_{\text{cell}})$
 
 <img src="assets/Boids Ugrids buffers naive.png" alt="buffers for generating a uniform grid using index sort" style="zoom:50%;" />
+
+```c++
+Algorithm StepSimulationCoherentGrid(vel1, vel2, pos, N_particle, N_cell):
+    // === 1. Label particles with their grid and array indices in parallel ===
+	...
+    // === 2. Sort particles by their cell index ===
+    ...
+    // === 3. Identify the start and end indices for each cell ===
+	...         
+	// === 4. Rearrange the particle data to improve spatial locality ===
+	Gather(arrayIndices, pos, pos_gathered)
+    Gather(arrayIndices, vel1, vel_gathered)
+    // === 5. Update velocities using neighbor search with the uniform grid === 
+	StepSimulationCell(vel_gathered, vel2, pos_gathered, N_particle, cellRanges, arrayIndices)
+  	swap(vel1, vel_gathered)
+    swap(pos, pos_gathered)
+```
 
 ## Performance Analysis
 

@@ -264,7 +264,7 @@ __device__ glm::vec3 computeVelocityChange(int N, int iSelf, const glm::vec3 *po
   glm::vec3 thisPos = pos[iSelf];
 
   // compute the velocity change based on the three rules
-  for (int i = 0; i < N; i++) {
+  for (int i = 0; i < N; i++) { // bottleneck here: O(N)
     if (i == iSelf) {
       continue;
     }
@@ -298,7 +298,6 @@ __device__ glm::vec3 computeVelocityChange(int N, int iSelf, const glm::vec3 *po
     res_vel += cohesion * rule3Scale;
   }
 
-
   return res_vel;
 }
 
@@ -308,7 +307,8 @@ __device__ glm::vec3 computeVelocityChange(int N, int iSelf, const glm::vec3 *po
 */
 __global__ void kernUpdateVelocityBruteForce(int N, glm::vec3 *pos,
   glm::vec3 *vel1, glm::vec3 *vel2) {
-  //! Ping-pong the velocity buffers: avoid read and write conflicts, reduce latency
+  //! Ping-pong the velocity buffers: avoid read and write conflicts, 
+  //! reduce latency between different threads
   // Compute a new velocity based on pos and vel1
   // Clamp the speed
   // Record the new velocity into vel2. 
@@ -329,10 +329,7 @@ __global__ void kernUpdateVelocityBruteForce(int N, glm::vec3 *pos,
   if (speed > maxSpeed) {
     new_vel = new_vel * maxSpeed / speed;
   }
-
   vel2[index] = new_vel;
-
-
 }
 
 /**
@@ -421,7 +418,6 @@ __global__ void kernIdentifyCellStartEnd(int N, int *particleGridIndices,
       gridCellRanges[gridIndex].y = N;
     }
   }
-
 }
 
 __global__ void kernUpdateVelNeighborSearchScattered(
@@ -568,7 +564,7 @@ __global__ void kernUpdateVelNeighborSearchCoherent(
       glm::vec3 otherVel = vel1[i];
       float distance = glm::length(otherPos - thisPos);
 
-      if(distance > cellWidth || distance == 0)
+	  if (distance > cellWidth || distance == 0)
         continue;
       if (distance < rule1Distance) {
         center += otherPos;
@@ -641,7 +637,8 @@ void Boids::stepSimulationScatteredGrid(float dt) {
 
   dim3 fullBlocksPerGrid((numObjects + blockSize - 1) / blockSize);
 
-  // Label each particle with its array index as well as its grid index.
+  // Label each particle with its array index as well as its grid index 
+  // based on the position of the particle
   kernComputeIndices << <fullBlocksPerGrid, blockSize >> >(
       numObjects, gridSideCount, gridMinimum, gridInverseCellWidth, 
       dev_pos, 
