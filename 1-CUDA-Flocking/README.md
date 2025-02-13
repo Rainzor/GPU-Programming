@@ -58,7 +58,7 @@ The simulation is based on  the **Reynolds Boids algorithm**, along with three l
   - $O(N)$
   
   ```c++
-  Algorithm StepSimulation(vel1, vel2, pos, N=N_particle):
+  Algorithm StepSimulation(vel1, vel2, pos, N=N_particle){
 	    // === 1. Compute new velocities in parallel, writing results to vel2 ===
 	    for all i in parallel [0, N-1]:
 	        newVel = (0, 0, 0)
@@ -79,6 +79,7 @@ The simulation is based on  the **Reynolds Boids algorithm**, along with three l
 	    // === 3. Update positions using the new velocities (vel1) ===
 	    for all i in parallel [0, N-1]:
 	        pos[i] = pos[i] + vel1[i] * dt
+  }
   ```
 
 ### Uniform Grid
