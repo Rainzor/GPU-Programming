@@ -157,15 +157,19 @@ for d = log2(n) - 1 to 0
 end for
 ```
 
-The result of a naive parallel scan is the *exclusive scan*. Both phases have an $O(n)$ workload, making it a work-efficient parallel scan algorithm. Furthermore, all operations can be performed in place, avoiding the race conditions that are inherent in the naive method. Additionally, the total number of threads is only half the size of the array.
+The result of a naive parallel scan is the *exclusive scan*. Both phases have an $O(n)$ workload, making it a work-efficient parallel scan algorithm. Furthermore, all operations can be performed in place, avoiding the race conditions that are inherent in the naive method. And the total number of threads is only half the size of the array.
 
-However, *Algorithm 2* is limited to use in  power-of-two sized array. One way to handle arbitrary sized arrays is by padding the array with the identity element, making its size compatible with *Algorithm 2*. In the worst case, for example when the size is $2^d+1$, the array must be extended to $2^{d+1}$, doubling the computational cost. As a result, the amount of wasted computation is $O(n)$.
+However, *Algorithm 2* is limited to use in  power-of-two sized array. One way to handle arbitrary sized arrays is by padding the array with the identity element, making its size compatible with *Algorithm 2*. In the worst case, for example when the size is $2^d+1$, the array must be extended to $2^{d+1}$, doubling the computational cost. As a result, the amount of wasted computation is:
+
+$$
+W(n) =2\times \sum_{d=1}^{\log n} 2^d= O(n)
+$$
 
 ### 4. Hardware Optimization
 
 #### Divide & Conquer
 
-In order to scan large arrays of arbitrary (non-power-of-two) dimensions, we take *divide & conquer* strategy to avoid double cost mentioned above.
+In order to scan large arrays of arbitrary (non-power-of-two) dimensions, we take ***divide & conquer*** strategy to avoid double cost mentioned above.
 
 The basic idea is simple. We divide the large array into blocks that each can be scanned by a single thread block, and then we scan the blocks and write the total sum of each block to another array of block sums. We then scan the block sums, generating an array of block increments that that are added to all elements in their respective blocks.
 
@@ -175,15 +179,20 @@ The basic idea is simple. We divide the large array into blocks that each can be
 
 In more detail, let *N* be the number of elements in the input array, and *B* be the number of elements processed in a block. We allocate *N*/*B* thread blocks of *B*/2 threads each. We use the scan algorithm of the previous sections to scan each block `i` independently, storing the resulting scans to sequential locations of the output array. We make one minor modification to the scan algorithm. Before zeroing the last element of block `i` , we store the value to an auxiliary array `SUMS`. We then scan `SUMS` in the same manner, writing the result to an array `INCR`. We then add `INCR[i]` to all elements of block `i` using a simple uniform add kernel invoked on *N*/*B* thread blocks of *B*/2 threads each. 
 
-If the size of the auxiliary array `SUMS` is larger than the block's size *B*, we can apply the *divide and conquer* approach again for `SUMS` recursively. In the worst case, the amount of wasted computation is $\frac{B}{\log B}O(\log n)$, where *B* is typically a constant value.
+If the size of the auxiliary array `SUMS` is larger than the block's size *B*, we can apply the *divide & conquer* approach again for `SUMS` recursively. In the worst case, the amount of wasted computation and time cost are:
+$$
+W(n) =\sum_{d=1}^{\ln n/ \ln B} B^d= O(n)\\
+T(n) = O(\log n)
+$$
+where *B* is typically a constant value.
 
 #### Shared Memory
 
-*Algorithm 1* and *Algorithm 2* are both implemented by CUDA global memory, but it's unavoidable to stride through global memory, which makes coalescing impossible. We can handle this problem by using a type of CUDA memory called *shared memory*.
+*Algorithm 1* and *Algorithm 2* are both implemented by CUDA global memory, but it's unavoidable to stride through global memory, which makes coalescing impossible. We can handle this problem by using a type of CUDA memory called ***shared memory***.
 
 Because shared memory is on-chip, it is much faster than local and global memory. In fact, shared memory latency is roughly 100X lower than uncached global memory latency. Threads can access data in shared memory loaded from global memory by other threads within the same thread block to facilitate global memory coalescing in cases where it would otherwise not be possible.
 
-According to the *divide and conquer* strategy, we can load data from global memory to shared memory per block, and then apply *Algorithm 2* on the shared memory data.
+According to the *divide & conquer* strategy, we can load data from global memory to shared memory per block, and then apply *Algorithm 2* on the shared memory data.
 
 ```c++
 __global__ void kernExclusiveScanPerBlock(uint32_t n, int* data, const int* idata){
@@ -202,11 +211,9 @@ __global__ void kernExclusiveScanPerBlock(uint32_t n, int* data, const int* idat
     // Up-Sweep (Reduce)
     int offset = 1;
     for(int stride = BLOCK_SIZE/2; stride > 0; stride >>= 1){
-        if(tid < stride){
+        if(tid < stride){ // Consider Warp Divergence
             int ai = offset * (tid2 + 1) - 1;
             int bi = offset * (tid2 + 2) - 1;
-            ai += CONFLICT_FREE_OFFSET(ai);
-            bi += CONFLICT_FREE_OFFSET(bi);
             buffer[bi] += buffer[ai];
         }
         offset <<= 1;
@@ -233,7 +240,6 @@ __global__ void kernExclusiveScanPerBlock(uint32_t n, int* data, const int* idat
         }
         offset >>= 1;
         __syncthreads();
-
     }
     // Write the result to the output
     gid = base + tid2;

@@ -166,7 +166,7 @@ namespace StreamCompaction {
 
             // Free the memory
             for(int i = 1; i < level; i++){
-                cudaFree(dev_ptr[i]);
+				cudaFree(dev_ptr[i]); // dev_ptr[0] is the final result
             }
             delete[] dev_ptr;
             delete[] grid_size;
