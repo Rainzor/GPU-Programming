@@ -72,13 +72,16 @@ The simulation is based on  the **Reynolds Boids algorithm**, along with three l
 	        newVel = vel1[i] + newVel
 	        // Write the updated velocity to vel2
 	        vel2[i] = newVel
-  
-	    // === 2. "Ping-Pong": swap velocity buffers ===
+          end for
+	    end for parallel
+	
+      // === 2. "Ping-Pong": swap velocity buffers ===
 	    swap(vel1, vel2)
-  
+	
 	    // === 3. Update positions using the new velocities (vel1) ===
-	    for all i in parallel [0, N-1]:
-	        pos[i] = pos[i] + vel1[i] * dt
+      for all i in parallel [0, N-1]:
+          pos[i] = pos[i] + vel1[i] * dt
+      end for parallel
   }
   ```
 
@@ -96,7 +99,7 @@ The simulation is based on  the **Reynolds Boids algorithm**, along with three l
   </p>
   
   ```c++
-  Algorithm StepSimulationScatteredGrid(vel1, vel2, pos, N_particle, N_cell):
+  Algorithm StepSimulationScatteredGrid(vel1, vel2, pos, N_particle, N_cell){
       // === 1. Label particles with their grid and array indices in parallel ===
       cellIndices = int[N_particle]
       arrayIndices = int[N_particle]
@@ -106,10 +109,11 @@ The simulation is based on  the **Reynolds Boids algorithm**, along with three l
           cellIdx = ComputeCelldIndex(pos, i)
           cellIndices[i] = cellIdx
           arrayIndices[i] = i
+      end for parallel
   
       // === 2. Sort particles by their cell index ===
-      SortByKey(key = cellIndices, value = arrayIndices)
-	  // === 3. Identify the start and end indices for each cell ===
+	    SortByKey(key = cellIndices, value = arrayIndices)
+    // === 3. Identify the start and end indices for each cell ===
       for all i in parallel [0, N_particle-1]:
           cellIdx = cellIndices[i]
           // Initialize the first element of the cell range
@@ -123,9 +127,11 @@ The simulation is based on  the **Reynolds Boids algorithm**, along with three l
           // Update the last particle's range
           if i == N_particle - 1:
               cellRanges[cellIdx].y = N_particle
+      end for parallel
   
       // === 4. Update velocities using neighbor search with the uniform grid === 
   	StepSimulationCell(vel1, vel2, pos, N_particle, cellRanges, arrayIndices)
+  }
   ```
   
 
@@ -139,7 +145,7 @@ The simulation is based on  the **Reynolds Boids algorithm**, along with three l
 <img src="assets/Boids Ugrids buffers naive.png" alt="buffers for generating a uniform grid using index sort" style="zoom:50%;" />
 
 ```c++
-Algorithm StepSimulationCoherentGrid(vel1, vel2, pos, N_particle, N_cell):
+Algorithm StepSimulationCoherentGrid(vel1, vel2, pos, N_particle, N_cell){
 	// === 1. Label particles with their grid and array indices in parallel ===
 	...
 	// === 2. Sort particles by their cell index ===
@@ -153,6 +159,7 @@ Algorithm StepSimulationCoherentGrid(vel1, vel2, pos, N_particle, N_cell):
 	StepSimulationCell(vel_gathered, vel2, pos_gathered, N_particle, cellRanges, arrayIndices)
 	swap(vel1, vel_gathered)
     swap(pos, pos_gathered)
+}
 ```
 
 ## Performance Analysis
