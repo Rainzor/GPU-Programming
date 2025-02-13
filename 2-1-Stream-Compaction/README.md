@@ -181,7 +181,7 @@ In more detail, let *N* be the number of elements in the input array, and *B* be
 
 If the size of the auxiliary array `SUMS` is larger than the block's size *B*, we can apply the *divide & conquer* approach again for `SUMS` recursively. In the worst case, the amount of wasted computation and time cost are:
 $$
-W(n) =\sum_{d=1}^{\ln n/ \ln B} B^d= O(n)\\
+W(n) =\sum_{d=1}^{\ln n/ \ln B} B^d= O(n),\quad\\
 T(n) = O(\log n)
 $$
 where *B* is typically a constant value.
