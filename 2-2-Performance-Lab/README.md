@@ -4,7 +4,7 @@ This is the second in series of 2 labs for CUDA. In this lab, we will discuss ho
 
 **The performance lab will be held in class. Please bring your Windows CUDA-Capable laptop with the code downloaded and built. If you do not have a Windows CUDA-Capable laptop, please find a partner to work with.** You will be able to follow the steps with Linux as well, but we will show this with Windows in the class.
 
-# TODO Before Performance Lab
+# Before Performance Lab
 
 ## Clone, Build and Run
 
@@ -30,15 +30,20 @@ Clone this repository from Github and then run the instructions below.
 
 Please ask me or the TAs ahead of time if you have trouble compiling the code. We want to be ready to go at the start of the lab.
 
-## Complete Copy Kernel, Naive Transpose and Shared Memory Transpose
+## Transpose
 
-* In the interest of time, we will not be writing code from scratch of these during the lab. So it is in your best interest to complete the code before the lab.
-    * This will let you review how transpose with shared memory works. So when we write more advance kernel that build on these, you will know what changes we are making.
-    
-* The sections you need to work on are marked by `TODO: COMPLETE THIS`.
-    * There are 3 kernels you need to write, and 3 `blocks`/`grids` configurations you need to set up.
-    
-* Once completed, your output should look like this: 
+- Complete Copy Kernel, 
+- Naive Transpose
+- Shared Memory Transpose
+- W/O Bank Conflicts Transpose
+
+In the interest of time, we will not be writing code from scratch of these during the lab. So it is in your best interest to complete the code before the lab.
+   -  This will let you review how transpose with shared memory works. So when we write more advance kernel that build on these, you will know what changes we are making.
+
+The sections you need to work on are marked by `TODO: COMPLETE THIS`.
+
+- There are 3 kernels you need to write, and 3 `blocks`/`grids` configurations you need to set up.
+- Once completed, your output should look like this: 
 
 <p align="center">
   <img src="assets/image-20250212174623690.png" width= 70% />
@@ -48,3 +53,16 @@ Please ask me or the TAs ahead of time if you have trouble compiling the code. W
 #### Third Party Code
 
 This repository includes code from [termcolor](https://github.com/ikalnytskyi/termcolor) licensed under the BSD 3 Clause.
+
+## Reduce
+
+0. Naive Reduction
+1. Less Warp Divergence
+2. Less Bank Conflicts
+3. Less Blocks and  More Computation
+4. Warp Level Unroll Loop (No Warp Divergence)
+5. Block and Shared Mem Unroll Loop
+
+<p align="center">
+  <img src="assets/image-20250213153445318.png" width= 65% />
+</p>

@@ -59,26 +59,26 @@ The simulation is based on  the **Reynolds Boids algorithm**, along with three l
   
   ```c++
   Algorithm StepSimulation(vel1, vel2, pos, N=N_particle):
-	// === 1. Compute new velocities in parallel, writing results to vel2 ===
-	par-for i in [0, N-1]:
-		newVel = (0, 0, 0)
-		for j in [0, N-1]:
-			distance = length(pos[j] - pos[i])           
-			if distance > 0 && distance < MAX_DISTANCE:
-				continue
-			newVel += ComputeVelocityChange(pos ,vel1, i, j)
-         
-		// Combine with current velocity
-		newVel = vel1[i] + newVel
-		// Write the updated velocity to vel2
-		vel2[i] = newVel
+	    // === 1. Compute new velocities in parallel, writing results to vel2 ===
+	    for all i in parallel [0, N-1]:
+	        newVel = (0, 0, 0)
+	        for j in [0, N-1]:
+	            distance = length(pos[j] - pos[i])           
+	            if distance > 0 && distance < MAX_DISTANCE:
+	                continue
+	            newVel += ComputeVelocityChange(pos ,vel1, i, j)
   
-	// === 2. "Ping-Pong": swap velocity buffers ===
-	swap(vel1, vel2)
+	        // Combine with current velocity
+	        newVel = vel1[i] + newVel
+	        // Write the updated velocity to vel2
+	        vel2[i] = newVel
   
-	// === 3. Update positions using the new velocities (vel1) ===
-	par-for i in [0, N-1]:
-		pos[i] = pos[i] + vel1[i] * dt
+	    // === 2. "Ping-Pong": swap velocity buffers ===
+	    swap(vel1, vel2)
+  
+	    // === 3. Update positions using the new velocities (vel1) ===
+	    for all i in parallel [0, N-1]:
+	        pos[i] = pos[i] + vel1[i] * dt
   ```
 
 ### Uniform Grid
@@ -101,7 +101,7 @@ The simulation is based on  the **Reynolds Boids algorithm**, along with three l
       arrayIndices = int[N_particle]
       cellRanges = int2[N_cell]
           
-      par-for i in [0, N_particle-1]:
+      for all i in parallel [0, N_particle-1]:
           cellIdx = ComputeCelldIndex(pos, i)
           cellIndices[i] = cellIdx
           arrayIndices[i] = i
@@ -109,7 +109,7 @@ The simulation is based on  the **Reynolds Boids algorithm**, along with three l
       // === 2. Sort particles by their cell index ===
       SortByKey(key = cellIndices, value = arrayIndices)
 	  // === 3. Identify the start and end indices for each cell ===
-      par-for i in [0, N_particle-1]:
+      for all i in parallel [0, N_particle-1]:
           cellIdx = cellIndices[i]
           // Initialize the first element of the cell range
           if i == 0 or cellIdx != cellIndices[i-1]:
@@ -151,7 +151,7 @@ Algorithm StepSimulationCoherentGrid(vel1, vel2, pos, N_particle, N_cell):
 	// === 5. Update velocities using neighbor search with the uniform grid === 
 	StepSimulationCell(vel_gathered, vel2, pos_gathered, N_particle, cellRanges, arrayIndices)
 	swap(vel1, vel_gathered)
-    	swap(pos, pos_gathered)
+    swap(pos, pos_gathered)
 ```
 
 ## Performance Analysis

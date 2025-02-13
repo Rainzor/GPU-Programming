@@ -15,7 +15,7 @@
 #include <string>
 
 // Number of element to reduce
-static const int n_elements = 32 * 1024 * 1024;
+static const int n_elements = 128 * 1024 * 1024;
 
 // Number of threads per block to use for all kernels
 static const int threads = 256;
@@ -150,7 +150,11 @@ __global__ void reduce_stage1(const float* d_idata, float* d_odata, int n)
     // Change the for-loop to use indexing that reduces warp-divergence
     for(int c = 1; c < blockDim.x; c *= 2)
     {
-        int index = 2 * c * threadIdx.x;
+        // e.g . 
+		// thread: 0, 1, 2, 3, ...
+        // index: 2 * 2 * 0 = 0, 2 * 2 * 1 = 4, 2 * 2 * 2 = 8, 2 * 2 * 3 = 12
+		// the threadIdx is different from the smem index
+		int index = 2 * c * threadIdx.x; 
         if(index < blockDim.x)
             smem[index] += smem[index + c];
 
@@ -193,6 +197,7 @@ __global__ void reduce_stage2(const float* d_idata, float* d_odata, int n)
     {
         // Inside of the loop is the similar to reduce_stage0 (not reduce_stage1)
         // The difference is in the if condition
+		// the threadIdx is the same as smem index
         if(threadIdx.x < c)
             smem[threadIdx.x] += smem[threadIdx.x + c];
 
@@ -337,7 +342,7 @@ __global__ void reduce_stage4(const float* d_idata, float* d_odata, int n)
 // This kernel also uses the warpReduce device function above
 ////////////////////////////////////////////////////////////////////////////////
 const int stage5_TILE = 2;
-template<unsigned int blockSize>
+template<unsigned int blockSize> // threads' number in a block
 __global__ void reduce_stage5(const float* d_idata, float* d_odata, int n)
 {
     // Allocate dynamic shared memory, Calculate 1D Index and
@@ -345,11 +350,12 @@ __global__ void reduce_stage5(const float* d_idata, float* d_odata, int n)
     // Exactly same as reduce_stage4. Use stage5_TILE instead of stage4_TILE.
     // Use #pragma unroll around the load loop
 
-    extern __shared__ float smem[];
+	extern __shared__ float smem[]; //blockSize
 
     int idx = blockIdx.x * blockDim.x * stage5_TILE + threadIdx.x;
 
     // Store the threadIdx.x in a register
+	// Same as reduce_stage4 but with #pragma unroll
     int tid = threadIdx.x;
     if(idx < n)
     {

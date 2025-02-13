@@ -4,7 +4,7 @@ CUDA Stream Compaction
 **University of Pennsylvania, CIS 565: GPU Programming and Architecture, Project 2**
 
 * Runze Wang
-* Tested on: Windows 22, VS2019, CUDA12.2, RTX4060
+* Tested on: Windows 11, VS2022, CUDA12.3, RTX4060
 * **Keywords:** Warp Divergence, Divide & Conquer, Shared Memory, Bank Conflicts
 
 This project is the CUDA implementation of Prefix-Sum (Scan) algorithm and Stream Compaction algorithm. The later algorithm is based the former one.
@@ -42,11 +42,11 @@ Informally, **stream compaction** is a filtering operation: from an input vector
 
 The overview of the pipeline is as follows:
 
-1. **Selection and Masking**:  select the elements of interest and mask them with 1.
+1. **Selection and Masking**:  select the elements `input` of interest and mask them with 1.
 
-2. **Inclusive Scan**: perform an inclusive scan on the mask array, resulting in an index array for the output.
+2. **Inclusive Scan**: perform an inclusive scan on the mask array, resulting in an index array `index`  for the output.
 
-3. **Output Assignment**: the output array is populated according to the generated index array.
+3. **Output Assignment**: the output array `output` is populated according to the generated index array.
 
    ```c++
    if(mask[i]==1) output[index[i]]=input[i];
@@ -58,7 +58,7 @@ The overview of the pipeline is as follows:
 
 ## CUDA Acceleration
 
-The project mainly focus on the acceleration of **scan** by some parallel algorithms and takes the advantage of the CUDA Architecture. So the features of the project are as follow. :laughing: 
+The project mainly focus on the acceleration of **scan process** by some parallel algorithms and takes the advantage of the CUDA architecture. So the features of the project are as follow. :laughing: 
 
 :star: A naive parallel scan algorithm (Hillis and Steele, 1986) taking $O(n \log n)$ addition operations. 
 	**Ping-pong buffers** are used to avoid race conditions.
@@ -75,12 +75,12 @@ More details you can see in [INSTRUCTION](./INSTRUCTION.md) and [GPU Gem Ch 39](
 ### 1. Naive parallel scan algorithm
 
 ```c
-// Algorithm1: Hillis and Steele Scan 
+// Algorithm1: Hillis and Steele Scan
 for d = 0 to log2(n)-1:
   stride = 1<<d;
   for all k in parallel:
     if (k >= stride)
-      x[k] = x[k – stride] + x[k];
+      x[k] += x[k – stride];
   end for
 end for
 ```
@@ -96,12 +96,12 @@ The result of naive parallel scan is the *inclusive scan*. And it's available to
 The problem with *Algorithm 1* is apparent if we examine its work complexity. The algorithm performs $O(n \log n)$ addition operations. At every level, all threads cost $O(n)$ workload.
 
 $$
-\sum_{d=1}^{\log n} n-2^{d-1} = O(n\log n - n)=O(n\log n)
+W(n)=\sum_{d=1}^{\log n} n-2^{d-1} = O(n\log n - n)=O(n\log n)
 $$
 
 ### 2. Work-Efficient Parallel Scan
 
-To address the work-inefficiency in  *Algorithm 1*, we need to develop a work-efficient scan algorithm for CUDA that avoids the extra factor of $\log n$ work performed by the naive algorithm. This algorithm is based on the one presented by Blelloch (1990). The idea is to build a balanced binary tree on the input data and sweep it to and from the root to compute the prefix sum. Briefly, the algorithm consists of two phases: the *reduce phase* (also known as the *up-sweep phase*) and the *down-sweep phase* . And we assume the size of input array is power of two ($2^d$) .
+To address the work-inefficiency in  *Algorithm 1*, we need to develop a work-efficient scan algorithm for CUDA that avoids the extra factor of $O(\log n)$ work performed by the naive algorithm. This algorithm is based on the one presented by Blelloch (1990). The idea is to build a balanced binary tree on the input data and sweep it to and from the root to compute the prefix sum. Briefly, the algorithm consists of two phases: the ***reduce phase*** (also known as the ***up-sweep phase***) and the ***down-sweep phase*** . And we assume the size of input array is power of two ($2^d$) .
 
 #### Up-Sweep (Reduce) Phase
 
