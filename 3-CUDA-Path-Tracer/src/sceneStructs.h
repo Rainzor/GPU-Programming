@@ -3,6 +3,12 @@
 #include <string>
 #include <vector>
 #include <cuda_runtime.h>
+#include <thrust/device_vector.h>
+#include <thrust/host_vector.h>
+#include <thrust/remove.h>
+#include <thrust/execution_policy.h>
+#include <thrust/functional.h>
+
 #include "glm/glm.hpp"
 
 #define BACKGROUND_COLOR (glm::vec3(0.0f))
@@ -49,6 +55,14 @@ struct Camera {
     glm::vec3 right;
     glm::vec2 fov;
     glm::vec2 pixelLength;
+
+    // Depth of field
+    float aperture=0.0f;
+    float focalLength=1.0f;
+    
+    // near and far plane
+    float farClip = 1000.f;
+    float nearClip = 0.001f;
 };
 
 struct RenderState {
@@ -73,4 +87,10 @@ struct ShadeableIntersection {
   float t;
   glm::vec3 surfaceNormal;
   int materialId;
+};
+
+struct Sample {
+    float pdf;
+    glm::vec3 BSDF;
+    Ray ray;
 };

@@ -138,6 +138,8 @@ void runCuda() {
 	if (iteration < renderState->iterations) {
 		uchar4* pbo_dptr = NULL;
 		iteration++;
+		// Map the buffer object into CUDA's address space
+		// So we can write to pbo directly from the GPU
 		cudaGLMapBufferObject((void**)&pbo_dptr, pbo);
 
 		// execute the kernel

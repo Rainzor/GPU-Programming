@@ -32,7 +32,7 @@ void initTextures() {
 	glBindTexture(GL_TEXTURE_2D, displayImage);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, width, height, 0, GL_BGRA, GL_UNSIGNED_BYTE, NULL);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, width, height, 0, GL_BGRA, GL_UNSIGNED_BYTE, NULL);// Load nothing initially, will be updated by PBO and glTexSubImage2D
 }
 
 void initVAO(void) {
@@ -241,9 +241,9 @@ void mainLoop() {
 
 		string title = "CIS565 Path Tracer | " + utilityCore::convertIntToString(iteration) + " Iterations";
 		glfwSetWindowTitle(window, title.c_str());
-		glBindBuffer(GL_PIXEL_UNPACK_BUFFER, pbo);
-		glBindTexture(GL_TEXTURE_2D, displayImage);
-		glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, width, height, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
+		glBindBuffer(GL_PIXEL_UNPACK_BUFFER, pbo);// Bind the PBO so we can map it to CUDA
+		glBindTexture(GL_TEXTURE_2D, displayImage); // Bind the texture we're going to update
+		glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, width, height, GL_RGBA, GL_UNSIGNED_BYTE, NULL); // Update the texture with the PBO data when PBO is ready
 		glClear(GL_COLOR_BUFFER_BIT);
 
 		// Binding GL_PIXEL_UNPACK_BUFFER back to default

@@ -4,11 +4,11 @@
 
 // CHECKITOUT
 /**
- * Computes a cosine-weighted random direction in a hemisphere.
+ * Computes a cosine-weighted random direction on a hemisphere surface.
  * Used for diffuse lighting.
  */
 __host__ __device__
-glm::vec3 calculateRandomDirectionInHemisphere(
+glm::vec3 calculateRandomDirectionOnHemisphere(
         glm::vec3 normal, thrust::default_random_engine &rng) {
     thrust::uniform_real_distribution<float> u01(0, 1);
 
@@ -17,9 +17,8 @@ glm::vec3 calculateRandomDirectionInHemisphere(
     float around = u01(rng) * TWO_PI;
 
     // Find a direction that is not the normal based off of whether or not the
-    // normal's components are all equal to sqrt(1/3) or whether or not at
-    // least one component is less than sqrt(1/3). Learned this trick from
-    // Peter Kutz.
+    // normal's components are all equal to sqrt(1/3) or 
+    // whether or not at least one component is less than sqrt(1/3). Learned this trick from Peter Kutz.
 
     glm::vec3 directionNotNormal;
     if (abs(normal.x) < SQRT_OF_ONE_THIRD) {
@@ -41,6 +40,26 @@ glm::vec3 calculateRandomDirectionInHemisphere(
         + sin(around) * over * perpendicularDirection2;
 }
 
+__host__ __device__
+glm::vec2 sampleUnitDiskConcentric(const glm::vec2& u){
+    glm::vec2 uOffset = 2.f * u - glm::vec2(1.f);
+    if (uOffset.x == 0 && uOffset.y == 0) {
+        return glm::vec2(0.f);
+    }
+
+    float theta, r;
+    if (std::abs(uOffset.x) > std::abs(uOffset.y)) {
+        r = uOffset.x;
+        theta = PI / 4.f * (uOffset.y / uOffset.x);
+    } else {
+        r = uOffset.y;
+        theta = PI / 2.f - PI / 4.f * (uOffset.x / uOffset.y);
+    }
+
+    return r * glm::vec2(std::cos(theta), std::sin(theta));
+}
+
+
 /**
  * Scatter a ray with some probabilities according to the material properties.
  * For example, a diffuse surface scatters in a cosine-weighted hemisphere.
@@ -61,19 +80,31 @@ glm::vec3 calculateRandomDirectionInHemisphere(
  * - Pick the split based on the intensity of each material color, and divide
  *   branch result by that branch's probability (whatever probability you use).
  *
- * This method applies its changes to the Ray parameter `ray` in place.
- * It also modifies the color `color` of the ray in place.
- *
+ * This method returns a Sample struct with the scattered ray direction, the bsdf and the pdf.
  * You may need to change the parameter list for your purposes!
  */
 __host__ __device__
-void scatterRay(
-        PathSegment & pathSegment,
-        glm::vec3 intersect,
-        glm::vec3 normal,
-        const Material &m,
+Sample scatterRay(
+        const PathSegment & pathSegment,
+        const ShadeableIntersection & intersection,
+        const Material &material,
         thrust::default_random_engine &rng) {
-    // TODO: implement this.
-    // A basic implementation of pure-diffuse shading will just call the
-    // calculateRandomDirectionInHemisphere defined above.
+    // ! Scatter the ray according to the type of material
+    thrust::uniform_real_distribution<float> u01(0, 1);
+    Sample sample;
+    glm::vec3 direction;
+    if (material.hasReflective) { // Perfect Reflection
+        direction = glm::reflect(pathSegment.ray.direction, intersection.surfaceNormal);
+        float cosTheta = glm::dot(direction, intersection.surfaceNormal);
+        sample.BSDF = material.specular.color / cosTheta;
+        sample.pdf = 1.f;
+    } else{ // Diffuse
+        direction = calculateRandomDirectionOnHemisphere(intersection.surfaceNormal, rng);
+        sample.BSDF = material.color / PI;
+        sample.pdf = glm::dot(direction, intersection.surfaceNormal) / PI;
+    }
+
+    sample.ray.origin = pathSegment.ray.origin + pathSegment.ray.direction * intersection.t;
+    sample.ray.direction = glm::normalize(direction);
+    return sample;
 }
