@@ -158,23 +158,101 @@ void runCuda() {
 }
 
 void keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods) {
-	if (action == GLFW_PRESS) {
-		switch (key) {
-		case GLFW_KEY_ESCAPE:
-			saveImage();
-			glfwSetWindowShouldClose(window, GL_TRUE);
-			break;
-		case GLFW_KEY_S:
-			saveImage();
-			break;
-		case GLFW_KEY_SPACE:
-			camchanged = true;
-			renderState = &scene->state;
-			Camera& cam = renderState->camera;
-			cam.lookAt = ogLookAt;
-			break;
-		}
-	}
+    if (action == GLFW_PRESS || action == GLFW_REPEAT) {
+        Camera& cam = renderState->camera;
+
+        switch (key) {
+            case GLFW_KEY_ESCAPE:
+                saveImage();
+                glfwSetWindowShouldClose(window, GL_TRUE);
+                break;
+            case GLFW_KEY_F5:
+                saveImage();
+                break;
+            case GLFW_KEY_SPACE:
+                camchanged = true;
+                renderState = &scene->state;
+                cam.lookAt = ogLookAt;
+                break;
+
+            // Camera movement controls
+			case GLFW_KEY_W: // Move camera forward
+				cam.position += cam.view * 0.1f;
+				cam.lookAt += cam.view * 0.1f;
+				camchanged = true;
+				break;
+			case GLFW_KEY_S: // Move camera backward
+				cam.position -= cam.view * 0.1f;
+				cam.lookAt -= cam.view * 0.1f;
+				camchanged = true;
+				break;
+			case GLFW_KEY_A: // Move camera left
+				cam.position -= cam.right * 0.1f;
+				cam.lookAt -= cam.right * 0.1f;
+				camchanged = true;
+				break;
+			case GLFW_KEY_D: // Move camera right
+				cam.position += cam.right * 0.1f;
+				cam.lookAt += cam.right * 0.1f;
+				camchanged = true;
+				break;
+			case GLFW_KEY_Q: // Move camera down
+				cam.position -= cam.up * 0.1f;
+				cam.lookAt -= cam.up * 0.1f;
+				camchanged = true;
+				break;
+			case GLFW_KEY_E: // Move camera up
+				cam.position += cam.up * 0.1f;
+				cam.lookAt += cam.up * 0.1f;
+				camchanged = true;
+				break;
+			case GLFW_KEY_UP: // Move camera forward
+				cam.position += cam.view * 0.1f;
+				cam.lookAt += cam.view * 0.1f;
+				camchanged = true;
+				break;
+			case GLFW_KEY_DOWN: // Move camera backward
+				cam.position -= cam.view * 0.1f;
+				cam.lookAt -= cam.view * 0.1f;
+				camchanged = true;
+				break;
+			case GLFW_KEY_LEFT: // Move camera left
+				cam.position -= cam.right * 0.1f;
+				cam.lookAt -= cam.right * 0.1f;
+				camchanged = true;
+				break;
+			case GLFW_KEY_RIGHT: // Move camera right	
+				cam.position += cam.right * 0.1f;
+				cam.lookAt += cam.right * 0.1f;
+				camchanged = true;
+				break;
+			case GLFW_KEY_PAGE_UP: // Move camera up
+				cam.position += cam.up * 0.1f;
+				cam.lookAt += cam.up * 0.1f;
+				camchanged = true;
+				break;
+			case GLFW_KEY_PAGE_DOWN: // Move camera down
+				cam.position -= cam.up * 0.1f;
+				cam.lookAt -= cam.up * 0.1f;
+				camchanged = true;
+				break;
+			case GLFW_KEY_J: // Rotate camera left
+				cam.lookAt += cam.right * 0.1f;
+				camchanged = true;
+				break;
+			case GLFW_KEY_L: // Rotate camera right
+				cam.lookAt -= cam.right * 0.1f;
+				camchanged = true;
+				break;
+			case GLFW_KEY_I: // Rotate camera up
+				cam.lookAt += cam.up * 0.1f;
+				camchanged = true;
+				break;
+			case GLFW_KEY_K: // Rotate camera down
+				cam.lookAt -= cam.up * 0.1f;
+				camchanged = true;
+        }
+    }
 }
 
 void mouseButtonCallback(GLFWwindow* window, int button, int action, int mods) {

@@ -16,6 +16,7 @@
 enum GeomType {
     SPHERE,
     CUBE,
+    TRIANGLE,
 };
 
 struct Ray {
@@ -43,7 +44,7 @@ struct Material {
     float hasReflective;
     float hasRefractive;
     float indexOfRefraction;
-    float emittance;
+    float emittance;  
 };
 
 struct Camera {
@@ -84,9 +85,9 @@ struct PathSegment {
 // 1) color contribution computation
 // 2) BSDF evaluation: generate a new ray
 struct ShadeableIntersection {
-  float t;
-  glm::vec3 surfaceNormal;
-  int materialId;
+    float t;
+    glm::vec3 surfaceNormal;
+    int materialId;
 };
 
 struct Sample {
