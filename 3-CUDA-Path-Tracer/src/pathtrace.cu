@@ -225,11 +225,11 @@ __global__ void computeIntersections(
 		{
 			Geom& geom = geoms[i];
 
-			if (geom.type == CUBE)
+			if (geom.type == Primitive::CUBE)
 			{
 				t = boxIntersectionTest(geom, pathSegment.ray, tmp_intersect, tmp_normal, outside);
 			}
-			else if (geom.type == SPHERE)
+			else if (geom.type == Primitive::SPHERE)
 			{
 				t = sphereIntersectionTest(geom, pathSegment.ray, tmp_intersect, tmp_normal, outside);
 			}
@@ -296,9 +296,6 @@ __global__ void shadeFakeMaterial(
 				pathSegments[idx].color *= (materialColor * material.emittance);
 				pathSegments[idx].remainingBounces = 0;
 			}
-			// Otherwise, do some pseudo-lighting computation. This is actually more
-			// like what you would expect from shading in a rasterizer like OpenGL.
-			// TODO: replace this! you should be able to start with basically a one-liner
 			else {
 				float lightTerm = glm::dot(intersection.surfaceNormal, glm::vec3(0.0f, 1.0f, 0.0f));
 				pathSegments[idx].color *= (materialColor * lightTerm) * 0.3f + ((1.0f - intersection.t * 0.02f) * materialColor) * 0.7f;
@@ -340,18 +337,10 @@ __global__ void shadeMaterial(
 			glm::vec3 materialColor = material.color;
 
 			// If the material indicates that the object was a light, "light" the ray
-			if (material.emittance > 0.0f) {
+			if (material.type == MaterialType::LIGHT) {
 				pathSegments[idx].color *= (materialColor * material.emittance);
 				pathSegments[idx].remainingBounces = 0;
-			}
-			// Otherwise, do some pseudo-lighting computation. This is actually more
-			// like what you would expect from shading in a rasterizer like OpenGL.
-			// TODO: replace this! you should be able to start with basically a one-liner
-			else if (pathSegments[idx].remainingBounces > 0) {
-				//  float lightTerm = glm::dot(intersection.surfaceNormal, glm::vec3(0.0f, 1.0f, 0.0f));
-				//  pathSegments[idx].color *= (materialColor * lightTerm) * 0.3f + ((1.0f - intersection.t * 0.02f) * materialColor) * 0.7f;
-				//  pathSegments[idx].color *= u01(rng); // apply some noise because why not
-
+			}else if (pathSegments[idx].remainingBounces > 0) {
 				// Scatter the ray
 				Sample sample = scatterRay(pathSegments[idx], intersection, material, rng);
 				float cosineterm = glm::dot(sample.ray.direction, intersection.surfaceNormal);
@@ -369,7 +358,7 @@ __global__ void shadeMaterial(
 			// This can be useful for post-processing and image compositing.
 		}
 		else {
-			pathSegments[idx].color = glm::vec3(0.0f);
+			pathSegments[idx].color = BACKGROUND_COLOR;
 			pathSegments[idx].remainingBounces = 0;
 		}
 	}

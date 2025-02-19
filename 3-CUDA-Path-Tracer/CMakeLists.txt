@@ -63,6 +63,9 @@ set(GLM_ROOT_DIR "external")
 find_package(GLM REQUIRED)
 include_directories(${GLM_INCLUDE_DIRS})
 
+set(JSON_ROOT_DIR "external")
+include_directories(${JSON_ROOT_DIR}/include/nlohmann)
+
 set(headers
     src/main.h
     src/image.h

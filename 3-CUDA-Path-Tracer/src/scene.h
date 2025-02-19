@@ -4,11 +4,13 @@
 #include <sstream>
 #include <fstream>
 #include <iostream>
+#include <nlohmann/json.hpp>
 #include "glm/glm.hpp"
 #include "utilities.h"
 #include "sceneStructs.h"
 
 using namespace std;
+using json = nlohmann::json;
 
 class Scene {
 private:
@@ -16,6 +18,11 @@ private:
     int loadMaterial(string materialid);
     int loadGeom(string objectid);
     int loadCamera();
+
+    int loadMaterial(const json& materialData);
+    int loadGeom(const json& geomData);
+    int loadCamera(const json& cameraData);
+
 public:
     Scene(string filename);
     ~Scene();

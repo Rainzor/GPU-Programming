@@ -13,10 +13,17 @@
 
 #define BACKGROUND_COLOR (glm::vec3(0.0f))
 
-enum GeomType {
+enum Primitive {
     SPHERE,
     CUBE,
     TRIANGLE,
+};
+
+enum MaterialType {
+    LIGHT,
+    DIFFUSE,
+    SPECULAR,
+    DIELECTRIC,
 };
 
 struct Ray {
@@ -25,8 +32,9 @@ struct Ray {
 };
 
 struct Geom {
-    enum GeomType type;
-    int materialid;
+    enum Primitive type;
+    size_t num = 1;
+    size_t materialid;
     glm::vec3 translation;
     glm::vec3 rotation;
     glm::vec3 scale;
@@ -36,13 +44,8 @@ struct Geom {
 };
 
 struct Material {
+    enum MaterialType type;
     glm::vec3 color;
-    struct {
-        float exponent;
-        glm::vec3 color;
-    } specular;
-    float hasReflective;
-    float hasRefractive;
     float indexOfRefraction;
     float emittance;  
 };
@@ -87,7 +90,8 @@ struct PathSegment {
 struct ShadeableIntersection {
     float t;
     glm::vec3 surfaceNormal;
-    int materialId;
+    float u, v;
+    size_t materialId;
 };
 
 struct Sample {
@@ -95,3 +99,15 @@ struct Sample {
     glm::vec3 BSDF;
     Ray ray;
 };
+
+namespace Reflectance {
+    enum Type {
+        RGB,
+        BITMAP,
+    };
+    struct Texture {
+        Type type = RGB;
+        glm::vec3 color = glm::vec3(0.0f);
+        std::vector<glm::vec3> bitmap; 
+    };
+}

@@ -92,13 +92,13 @@ Sample scatterRay(
     // ! Scatter the ray according to the type of material
     thrust::uniform_real_distribution<float> u01(0, 1);
     Sample sample;
-    glm::vec3 direction;
-    if (material.hasReflective) { // Perfect Reflection
+    glm::vec3 direction = glm::vec3(0.f);
+    if (material.type == MaterialType::SPECULAR){ // Perfect Reflection
         direction = glm::reflect(pathSegment.ray.direction, intersection.surfaceNormal);
         float cosTheta = glm::dot(direction, intersection.surfaceNormal);
-        sample.BSDF = material.specular.color / cosTheta;
+        sample.BSDF = material.color / cosTheta;
         sample.pdf = 1.f;
-    } else{ // Diffuse
+    } else if (material.type == MaterialType::DIFFUSE){ // Lambertian
         direction = calculateRandomDirectionOnHemisphere(intersection.surfaceNormal, rng);
         sample.BSDF = material.color / PI;
         sample.pdf = glm::dot(direction, intersection.surfaceNormal) / PI;
