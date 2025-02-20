@@ -1,0 +1,112 @@
+{
+    "name": "earth",
+    "sensor": {
+        "type": "perspective",
+        "fovy": 45,
+        "eye": [0.0, 5, 10.5],
+        "lookat": [0, 5, 0],
+        "up": [0, 1, 0],
+        "focal": 0,
+        "aperture": 0,
+        "film": {
+            "resolution": [1024, 1024],
+            "spp": 1024
+        }
+    },
+    "integrator": {
+        "type": "path",
+        "maxdepth": 8
+    },
+    "shape": [
+        {
+            "type": "cube",
+            "bsdf": 0,
+            "transform": {
+                "translate": [0, 10, 0],
+                "rotate": [0, 0, 0],
+                "scale": [3, 0.3, 3]
+            }
+        },
+        {
+            "type": "cube",
+            "bsdf": 1,
+            "transform": {
+                "translate": [0, 0, 0],
+                "rotate": [0, 0, 0],
+                "scale": [10, 0.01, 10]
+            }
+        },
+        {
+            "type": "cube",
+            "bsdf": 1,
+            "transform": {
+                "translate": [0, 10, 0],
+                "rotate": [0, 0, 90],
+                "scale": [0.01, 10, 10]
+            }
+        },
+        {
+            "type": "cube",
+            "bsdf": 1,
+            "transform": {
+                "translate": [0, 5, -5],
+                "rotate": [0, 90, 0],
+                "scale": [0.01, 10, 10]
+            }
+        },
+        {
+            "type": "cube",
+            "bsdf": 2,
+            "transform": {
+                "translate": [-5, 5, 0],
+                "rotate": [0, 0, 0],
+                "scale": [0.01, 10, 10]
+            }
+        },
+        {
+            "type": "cube",
+            "bsdf": 3,
+            "transform": {
+                "translate": [5, 5, 0],
+                "rotate": [0, 0, 0],
+                "scale": [0.01, 10, 10]
+            }
+        },
+        {
+            "type": "sphere",
+            "bsdf": 4,
+            "transform": {
+                "translate": [-1, 4, -1],
+                "rotate": [0, 0, 0],
+                "scale": [5, 5, 5]
+            }
+        }
+    ],
+    "bsdf":[
+        {
+            "type": "light",
+            "rgb": [1, 1, 1],
+            "emission": 5
+        },
+        {
+            "type": "diffuse",
+            "rgb": [0.98, 0.98, 0.98]
+        },
+        {
+            "type": "diffuse",
+            "rgb": [0.85, 0.35, 0.35]
+        },
+        {
+            "type": "diffuse",
+            "rgb": [0.35, 0.85, 0.35]
+        },
+        {
+            "type": "diffuse",
+            "bitmap": "data\\earthmap.jpg"
+        }
+    ]
+
+    
+}
+
+

@@ -11,7 +11,7 @@
 
 #include "glm/glm.hpp"
 
-#define BACKGROUND_COLOR (glm::vec3(0.0f))
+#define BACKGROUND_COLOR (glm::vec3(0.1f))
 
 enum Primitive {
     SPHERE,
@@ -31,10 +31,22 @@ struct Ray {
     glm::vec3 direction;
 };
 
+
+struct Triangle{
+	glm::vec3 v0, v1, v2;
+	glm::vec3 n0, n1, n2;
+	glm::vec2 uv0, uv1, uv2;
+};
+
+struct TriangleMesh {
+	Triangle* triangles;
+	size_t num;
+};
+
 struct Geom {
     enum Primitive type;
-    size_t num = 1;
-    size_t materialid;
+	size_t trimeshId;
+    size_t materialId;
     glm::vec3 translation;
     glm::vec3 rotation;
     glm::vec3 scale;
@@ -43,11 +55,42 @@ struct Geom {
     glm::mat4 invTranspose;
 };
 
+enum TextureType {
+    RGB,
+    BITMAP,
+};
+struct Texture {
+    TextureType type = RGB;
+    glm::vec3 color = glm::vec3(0.0f);
+    size_t bitmapId = 0; 
+};
+
+struct Bitmap {
+	int width;
+	int height;
+	glm::u8vec4* pixels;
+};
+
+__host__ __device__ inline glm::vec3 getPixel(const Bitmap& bmp, glm::vec2 uv) {
+    int i = uv.x * bmp.width;
+	int j = (1 - uv.y) * bmp.height;// flip y
+
+    if (i >= bmp.width) i = bmp.width - 1;
+    if (j >= bmp.height) j = bmp.height - 1;
+
+    int index = (i + j * bmp.width);
+	float r = bmp.pixels[index].r / 255.f;
+	float g = bmp.pixels[index].g / 255.f;
+	float b = bmp.pixels[index].b / 255.f;
+	float a = bmp.pixels[index].a / 255.f;
+    return glm::vec3(r, g, b) * a;
+}
+
 struct Material {
     enum MaterialType type;
-    glm::vec3 color;
+    Texture texture;
     float indexOfRefraction;
-    float emittance;  
+    float emittance; 
 };
 
 struct Camera {
@@ -87,10 +130,10 @@ struct PathSegment {
 // Use with a corresponding PathSegment to do:
 // 1) color contribution computation
 // 2) BSDF evaluation: generate a new ray
-struct ShadeableIntersection {
+struct Intersection {
     float t;
     glm::vec3 surfaceNormal;
-    float u, v;
+    glm::vec2 uv;
     size_t materialId;
 };
 
@@ -99,15 +142,3 @@ struct Sample {
     glm::vec3 BSDF;
     Ray ray;
 };
-
-namespace Reflectance {
-    enum Type {
-        RGB,
-        BITMAP,
-    };
-    struct Texture {
-        Type type = RGB;
-        glm::vec3 color = glm::vec3(0.0f);
-        std::vector<glm::vec3> bitmap; 
-    };
-}

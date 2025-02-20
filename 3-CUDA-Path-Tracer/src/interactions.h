@@ -86,8 +86,9 @@ glm::vec2 sampleUnitDiskConcentric(const glm::vec2& u){
 __host__ __device__
 Sample scatterRay(
         const PathSegment & pathSegment,
-        const ShadeableIntersection & intersection,
+        const Intersection & intersection,
         const Material &material,
+	    const glm::vec3& abedo,
         thrust::default_random_engine &rng) {
     // ! Scatter the ray according to the type of material
     thrust::uniform_real_distribution<float> u01(0, 1);
@@ -96,11 +97,11 @@ Sample scatterRay(
     if (material.type == MaterialType::SPECULAR){ // Perfect Reflection
         direction = glm::reflect(pathSegment.ray.direction, intersection.surfaceNormal);
         float cosTheta = glm::dot(direction, intersection.surfaceNormal);
-        sample.BSDF = material.color / cosTheta;
+        sample.BSDF = abedo / cosTheta;
         sample.pdf = 1.f;
     } else if (material.type == MaterialType::DIFFUSE){ // Lambertian
         direction = calculateRandomDirectionOnHemisphere(intersection.surfaceNormal, rng);
-        sample.BSDF = material.color / PI;
+        sample.BSDF = abedo / PI;
         sample.pdf = glm::dot(direction, intersection.surfaceNormal) / PI;
     }
 

@@ -5,6 +5,8 @@
 #include <fstream>
 #include <iostream>
 #include <nlohmann/json.hpp>
+#include <string>
+#include <stb_image.h>
 #include "glm/glm.hpp"
 #include "utilities.h"
 #include "sceneStructs.h"
@@ -14,6 +16,7 @@ using json = nlohmann::json;
 
 class Scene {
 private:
+	string workdir;
     ifstream fp_in;
     int loadMaterial(string materialid);
     int loadGeom(string objectid);
@@ -29,5 +32,6 @@ public:
 
     std::vector<Geom> geoms;
     std::vector<Material> materials;
+    std::vector<Bitmap> bitmaps;
     RenderState state;
 };
