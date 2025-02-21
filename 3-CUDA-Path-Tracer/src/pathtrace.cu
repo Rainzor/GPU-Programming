@@ -95,12 +95,13 @@ static Scene* hst_scene = NULL;
 static GuiDataContainer* guiData = NULL;
 static glm::vec3* dev_image = NULL;
 static Geom* dev_geoms = NULL;
+static TriangleMesh* dev_trimeshes = NULL;
 static Material* dev_materials = NULL;
 static Bitmap* dev_bmp_ptr = NULL;
 static PathSegment* dev_paths = NULL;
 static Intersection* dev_intersections = NULL;
-static cudaTextureObject_t* hst_texs;
-static cudaTextureObject_t* dev_texs;
+static cudaTextureObject_t* hst_texs = NULL;
+static cudaTextureObject_t* dev_texs = NULL;
 
 // TODO: static variables for device memory, any extra info you need, etc
 // ...
@@ -121,76 +122,106 @@ void pathtraceInit(Scene* scene) {
 
 	cudaMalloc(&dev_paths, pixelcount * sizeof(PathSegment));
 
+	cudaMalloc(&dev_intersections, pixelcount * sizeof(Intersection));
+	cudaMemset(dev_intersections, 0, pixelcount * sizeof(Intersection));
+
+
+	checkCUDAError("pathtraceInit");
+}
+
+void resourceInit(Scene *scene) {
+
 	cudaMalloc(&dev_geoms, scene->geoms.size() * sizeof(Geom));
 	cudaMemcpy(dev_geoms, scene->geoms.data(), scene->geoms.size() * sizeof(Geom), cudaMemcpyHostToDevice);
 
 	cudaMalloc(&dev_materials, scene->materials.size() * sizeof(Material));
 	cudaMemcpy(dev_materials, scene->materials.data(), scene->materials.size() * sizeof(Material), cudaMemcpyHostToDevice);
 
-	cudaMalloc(&dev_intersections, pixelcount * sizeof(Intersection));
-	cudaMemset(dev_intersections, 0, pixelcount * sizeof(Intersection));
+	if (!scene->trimeshes.empty()) {
+		cudaMalloc(&dev_trimeshes, scene->trimeshes.size() * sizeof(TriangleMesh));
+		for (int i = 0; i < scene->trimeshes.size(); i++)
+		{
+			int numTriangles = scene->trimeshes[i].num;
+			Triangle* dev_triangle = NULL;
+			cudaMalloc(&(dev_triangle), numTriangles * sizeof(Triangle));
+			cudaMemcpy(dev_triangle, scene->trimeshes[i].triangles, numTriangles * sizeof(Triangle), cudaMemcpyHostToDevice);
 
-	if (scene->bitmaps.size() == 0) {
+			cudaMemcpy(&(dev_trimeshes[i].triangles), &dev_triangle, sizeof(unsigned char*), cudaMemcpyHostToDevice);
+			cudaMemcpy(&(dev_trimeshes[i].num), &(scene->trimeshes[i].num), sizeof(int), cudaMemcpyHostToDevice);
+		}
+	}
+	else {
+		dev_trimeshes = NULL;
+	}
+
+	if (!scene->bitmaps.empty()) {
+		//cudaMalloc(&dev_bmp_ptr, scene->bitmaps.size() * sizeof(Bitmap));
+		hst_texs = new cudaTextureObject_t[scene->bitmaps.size()];
+		for (int i = 0; i < scene->bitmaps.size(); i++)
+		{
+			cudaChannelFormatDesc channelDesc = cudaCreateChannelDesc(8, 8, 8, 8, cudaChannelFormatKindUnsigned);
+			cudaArray_t curArray;
+			cudaMallocArray(&curArray, &channelDesc, scene->bitmaps[i].width, scene->bitmaps[i].height);
+			cudaMemcpy2DToArray(curArray, 0, 0,
+				scene->bitmaps[i].pixels, scene->bitmaps[i].width * sizeof(uchar4),
+				scene->bitmaps[i].width * sizeof(uchar4), scene->bitmaps[i].height, cudaMemcpyHostToDevice);
+
+			cudaResourceDesc resDesc;
+			memset(&resDesc, 0, sizeof(resDesc));
+			resDesc.resType = cudaResourceTypeArray;
+			resDesc.res.array.array = curArray;
+
+			cudaTextureDesc texDesc;
+			memset(&texDesc, 0, sizeof(texDesc));
+			texDesc.addressMode[0] = cudaAddressModeWrap;
+			texDesc.addressMode[1] = cudaAddressModeWrap;
+			texDesc.filterMode = cudaFilterModeLinear;
+			texDesc.readMode = cudaReadModeNormalizedFloat;
+			texDesc.normalizedCoords = 1;
+
+			cudaCreateTextureObject(&hst_texs[i], &resDesc, &texDesc, NULL);
+
+			//int numPixel = scene->bitmaps[i].width * scene->bitmaps[i].height;
+			//unsigned char* dev_pixels = NULL;
+			//cudaMalloc(&dev_pixels, numPixel * sizeof(unsigned char) * 4);
+			//cudaMemcpy(dev_pixels, scene->bitmaps[i].pixels, numPixel * sizeof(unsigned char) * 4, cudaMemcpyHostToDevice);
+
+			//cudaMemcpy(&(dev_bmp_ptr[i].pixels), &dev_pixels, sizeof(unsigned char*), cudaMemcpyHostToDevice);
+			//cudaMemcpy(&(dev_bmp_ptr[i].width), &(scene->bitmaps[i].width), sizeof(int), cudaMemcpyHostToDevice);
+			//cudaMemcpy(&(dev_bmp_ptr[i].height), &(scene->bitmaps[i].height), sizeof(int), cudaMemcpyHostToDevice);
+		}
+
+
+		cudaMalloc(&dev_texs, scene->bitmaps.size() * sizeof(cudaTextureObject_t));
+		cudaMemcpy(dev_texs, hst_texs, scene->bitmaps.size() * sizeof(cudaTextureObject_t), cudaMemcpyHostToDevice);
+	}
+	else {
 		dev_bmp_ptr = NULL;
-		return;
+		dev_texs = NULL;
 	}
-	cudaMalloc(&dev_bmp_ptr, scene->bitmaps.size() * sizeof(Bitmap));
-	hst_texs = new cudaTextureObject_t[scene->bitmaps.size()];
-	for (int i = 0; i < scene->bitmaps.size(); i++)
-	{
-		cudaChannelFormatDesc channelDesc = cudaCreateChannelDesc(8, 8, 8, 8, cudaChannelFormatKindUnsigned);
-		cudaArray_t curArray;
-		cudaMallocArray(&curArray, &channelDesc, scene->bitmaps[i].width, scene->bitmaps[i].height);
-		cudaMemcpy2DToArray(curArray, 0, 0,
-			scene->bitmaps[i].pixels, scene->bitmaps[i].width * sizeof(uchar4),
-			scene->bitmaps[i].width * sizeof(uchar4), scene->bitmaps[i].height, cudaMemcpyHostToDevice);
-
-		cudaResourceDesc resDesc;
-		memset(&resDesc, 0, sizeof(resDesc));
-		resDesc.resType = cudaResourceTypeArray;
-		resDesc.res.array.array = curArray;
-
-		cudaTextureDesc texDesc;
-		memset(&texDesc, 0, sizeof(texDesc));
-		texDesc.addressMode[0] = cudaAddressModeWrap;
-		texDesc.addressMode[1] = cudaAddressModeWrap;
-		texDesc.filterMode = cudaFilterModeLinear;
-		texDesc.readMode = cudaReadModeNormalizedFloat;
-		texDesc.normalizedCoords = 1;
-
-		cudaCreateTextureObject(&hst_texs[i], &resDesc, &texDesc, NULL);
-
-		//int numPixel = scene->bitmaps[i].width * scene->bitmaps[i].height;
-		//unsigned char* dev_pixels = NULL;
-		//cudaMalloc(&dev_pixels, numPixel * sizeof(unsigned char) * 4);
-		//cudaMemcpy(dev_pixels, scene->bitmaps[i].pixels, numPixel * sizeof(unsigned char) * 4, cudaMemcpyHostToDevice);
-
-		//cudaMemcpy(&(dev_bmp_ptr[i].pixels), &dev_pixels, sizeof(unsigned char*), cudaMemcpyHostToDevice);
-		//cudaMemcpy(&(dev_bmp_ptr[i].width), &(scene->bitmaps[i].width), sizeof(int), cudaMemcpyHostToDevice);
-		//cudaMemcpy(&(dev_bmp_ptr[i].height), &(scene->bitmaps[i].height), sizeof(int), cudaMemcpyHostToDevice);
-	}
-
-
-	cudaMalloc(&dev_texs, scene->bitmaps.size() * sizeof(cudaTextureObject_t));
-	cudaMemcpy(dev_texs, hst_texs, scene->bitmaps.size() * sizeof(cudaTextureObject_t), cudaMemcpyHostToDevice);
-
 	// TODO: initialize any extra device memeory you need
-
-	checkCUDAError("pathtraceInit");
+	checkCUDAError("resourceInit");
 }
 
-void pathtraceFree() {
-	cudaFree(dev_image);  // no-op if dev_image is null
-	cudaFree(dev_paths);
+void resourceFree() {
+
 	cudaFree(dev_geoms);
 	cudaFree(dev_materials);
-	cudaFree(dev_intersections);
+
 	if (hst_scene == NULL)
 		return;
+
+	if (dev_trimeshes != NULL) {
+		for (int i = 0; i < hst_scene->trimeshes.size(); i++) {
+			cudaFree(dev_trimeshes[i].triangles);
+		}
+		cudaFree(dev_trimeshes);
+	}
+
 	// TODO: clean up any extra device memory you created
 	int numBitmaps = hst_scene->bitmaps.size();
-	if (dev_bmp_ptr != NULL  && numBitmaps > 0) {
-		for (int i = 0; i < hst_scene->bitmaps.size(); i++){
+	if (dev_bmp_ptr != NULL && numBitmaps > 0) {
+		for (int i = 0; i < hst_scene->bitmaps.size(); i++) {
 			cudaFree(dev_bmp_ptr[i].pixels);
 		}
 		cudaFree(dev_bmp_ptr);
@@ -213,7 +244,13 @@ void pathtraceFree() {
 		cudaFreeArray(array);
 	}
 	delete[] hst_texs;
+	checkCUDAError("resourceFree");
+}
 
+void pathtraceFree() {
+	cudaFree(dev_image);  // no-op if dev_image is null
+	cudaFree(dev_paths);
+	cudaFree(dev_intersections);
 	checkCUDAError("pathtraceFree");
 }
 
@@ -278,6 +315,7 @@ __global__ void computeIntersections(
 	PathSegment* pathSegments,
 	Geom* geoms,
 	int geoms_size,
+	TriangleMesh* trimeshes,
 	Intersection* intersections)
 {
 	int path_index = blockIdx.x * blockDim.x + threadIdx.x;
@@ -307,11 +345,15 @@ __global__ void computeIntersections(
 
 			if (geom.type == Primitive::CUBE)
 			{
-				boxIntersectionTest(geom, pathSegment.ray, tmp_intersection, outside);
+				boxIntersectionTest(geom, pathSegment.ray, t_min, tmp_intersection, outside);
 			}
 			else if (geom.type == Primitive::SPHERE)
 			{
-				sphereIntersectionTest(geom, pathSegment.ray, tmp_intersection, outside);
+				sphereIntersectionTest(geom, pathSegment.ray, t_min, tmp_intersection, outside);
+			}
+			else if (geom.type == Primitive::TRIANGLE) {
+				trimeshIntersectionTest(geom, pathSegment.ray, t_min, tmp_intersection, outside, trimeshes[geom.trimeshId]);
+				//tmp_intersection.t = -1.0f;
 			}
 			// TODO: add more intersection tests here... triangle? metaball? CSG?
 
@@ -547,6 +589,7 @@ void pathtrace(uchar4* pbo, int frame, int iter) {
 			dev_paths,
 			dev_geoms,
 			hst_scene->geoms.size(),
+			dev_trimeshes,
 			dev_intersections
 			);
 		checkCUDAError("trace one bounce");

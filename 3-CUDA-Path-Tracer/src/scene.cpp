@@ -1,8 +1,8 @@
 #include <iostream>
-#include "scene.h"
 #include <cstring>
 #include <glm/gtc/matrix_inverse.hpp>
 #include <glm/gtx/string_cast.hpp>
+#include "scene.h"
 
 
 Scene::Scene(string filename) {
@@ -27,12 +27,21 @@ Scene::Scene(string filename) {
         this->state.imageName = sceneData["name"];
         cout << "Scene Name: " << this->state.imageName << endl;
         this->state.traceDepth = sceneData["integrator"]["maxdepth"];
-        loadCamera(sceneData["sensor"]);
-        for (const auto& object : sceneData["shape"]){
-            loadGeom(object);
+        if (loadCamera(sceneData["sensor"]) == -1) {
+            cout << "Error loading camera!" << endl;
+			throw;
         }
-        for (const auto& material : sceneData["bsdf"]){
-            loadMaterial(material);
+        for (const auto& material : sceneData["bsdf"]) {
+			if (loadMaterial(material) == -1) {
+				cout << "Error loading material!" << endl;
+				throw;
+			}
+        }
+        for (const auto& object : sceneData["shape"]){
+			if (loadGeom(object) == -1) {
+				cout << "Error loading object!" << endl;
+				throw;
+			}
         }
     }
     fp_in.close();
@@ -43,11 +52,14 @@ Scene::~Scene() {
 	for (int i = 0; i < bitmaps.size(); i++) {
 		delete[] bitmaps[i].pixels;
 	}
+	for (int i = 0; i < trimeshes.size(); i++) {
+		delete[] trimeshes[i].triangles;
+	}
 }
 
 
 int Scene::loadCamera(const json& cameraData) {
-    cout << "Loading Camera ..." << endl;
+    cout << endl << "Loading Camera ..." << endl;
     RenderState &state = this->state;
     Camera &camera = state.camera;
 
@@ -63,7 +75,7 @@ int Scene::loadCamera(const json& cameraData) {
     camera.focalLength = cameraData["focal"];
     camera.aperture = cameraData["aperture"];
     
-    // Calculate fov based on resolution
+    // Calculate fov on resolution
     float fovy = cameraData["fovy"];
     float yscaled = tan(fovy * (PI / 180));
     float xscaled = (yscaled * camera.resolution.x) / camera.resolution.y;
@@ -80,91 +92,67 @@ int Scene::loadCamera(const json& cameraData) {
     int arraylen = camera.resolution.x * camera.resolution.y;
     state.image.resize(arraylen);
     std::fill(state.image.begin(), state.image.end(), glm::vec3());
-
-    cout << "Loaded camera!" << endl;
     return 1;
 }
 
-int Scene::loadGeom(const json& shapeData) {
-    Geom newGeom;
-    
-    string type = shapeData["type"];
-    if (type == "sphere") {
-        cout << "Creating new sphere..." << endl;
-        newGeom.type = Primitive::SPHERE;
-    } else if (type == "cube") {
-        cout << "Creating new cube..." << endl;
-        newGeom.type = Primitive::CUBE;
-    } else if (type == "triangle") {
-        cout << "Creating new triangle..." << endl;
-        newGeom.type = Primitive::TRIANGLE;
-    } else {
-        cout << "Unknown shape type: " << type << endl;
-        return -1;
-    }
-
-    // Link material (bsdf)
-    newGeom.materialId = shapeData["bsdf"];
-    cout << "Connecting Geom to Material " << newGeom.materialId << "..." << endl;
-
-    // Load transformations
-    auto transform = shapeData["transform"];
-    newGeom.translation = glm::vec3(transform["translate"][0], transform["translate"][1], transform["translate"][2]);
-    newGeom.rotation = glm::vec3(transform["rotate"][0], transform["rotate"][1], transform["rotate"][2]);
-    newGeom.scale = glm::vec3(transform["scale"][0], transform["scale"][1], transform["scale"][2]);
-
-    newGeom.transform = utilityCore::buildTransformationMatrix(newGeom.translation, newGeom.rotation, newGeom.scale);
-    newGeom.inverseTransform = glm::inverse(newGeom.transform);
-    newGeom.invTranspose = glm::inverseTranspose(newGeom.transform);
-
-    geoms.push_back(newGeom);
-    return 1;
+int Scene::loadBitmap(const string& bitmapPath){
+	cout << "Loading bitmap texture from " << bitmapPath << "..." << endl;
+	int w, h, n;
+	unsigned char* data = stbi_load(bitmapPath.c_str(), &w, &h, &n, 0);
+	if (data == nullptr) {
+		cout << "Error loading bitmap texture!" << endl;
+		return -1;
+	}
+	glm::u8vec4* dataCopy = new glm::u8vec4[w * h];
+	cout << "Width: " << w << " Height: " << h << " Channels: " << n << endl;
+	for (int i = 0; i < w * h; i++) {
+		unsigned char r = data[i * n];
+		unsigned char g = data[i * n + 1];
+		unsigned char b = data[i * n + 2];
+		unsigned char a = n == 4 ? data[i * n + 3] : 255;
+		dataCopy[i] = glm::u8vec4(r, g, b, a);
+	}
+	Bitmap newBitmap;
+	newBitmap.width = w;
+	newBitmap.height = h;
+	newBitmap.pixels = dataCopy;
+	bitmaps.push_back(newBitmap);
+	stbi_image_free(data);
+	return 1;
 }
 
 int Scene::loadMaterial(const json& materialData) {
+	cout << endl << "Creating new material " << materials.size() << "..." << endl;
     Material newMaterial;
     string type = materialData["type"];
-    
+
     if (type == "light") {
         newMaterial.type = MaterialType::LIGHT;
-    } else if (type == "diffuse") {
+    }
+    else if (type == "diffuse") {
         newMaterial.type = MaterialType::DIFFUSE;
-    } else if (type == "specular") {
+    }
+    else if (type == "specular") {
         newMaterial.type = MaterialType::SPECULAR;
-    } else if (type == "dielectric") {
+    }
+    else if (type == "dielectric") {
         newMaterial.type = MaterialType::DIELECTRIC;
     }
 
     // Load color and other properties
     if (materialData.contains("rgb")) {
-		newMaterial.texture.color = glm::vec3(materialData["rgb"][0], materialData["rgb"][1], materialData["rgb"][2]);
-	} else if (materialData.contains("bitmap")) {
-		newMaterial.texture.color = glm::vec3(1.0f);
-		newMaterial.texture.type = TextureType::BITMAP;
-        newMaterial.texture.bitmapId = bitmaps.size();
-		string bitmapPath = workdir + string(materialData["bitmap"]);
-		cout << "Loading bitmap texture from " << bitmapPath << "..." << endl;
-		int w, h, n;
-		unsigned char* data = stbi_load(bitmapPath.c_str(), &w, &h, &n, 0);
-        if (data == nullptr) {
-            cout << "Error loading bitmap texture!" << endl;
+        newMaterial.texture.color = glm::vec3(materialData["rgb"][0], materialData["rgb"][1], materialData["rgb"][2]);
+    }
+    else if (materialData.contains("bitmap")) {
+        newMaterial.texture.color = glm::vec3(1.0f);
+        newMaterial.texture.type = TextureType::BITMAP;
+        
+        string bitmapPath = workdir + string(materialData["bitmap"]);
+		if (loadBitmap(bitmapPath) == 1)
+            newMaterial.texture.bitmapId = bitmaps.size() - 1;
+        else {
             return -1;
         }
-		glm::u8vec4* dataCopy = new glm::u8vec4[w * h];
-		cout << "Width: " << w << " Height: " << h << " Channels: " << n << endl;
-		for (int i = 0; i < w * h; i++) {
-			unsigned char r = data[i * n];
-			unsigned char g = data[i * n + 1];
-			unsigned char b = data[i * n + 2];
-			unsigned char a = n == 4 ? data[i * n + 3] : 255;
-			dataCopy[i] = glm::u8vec4(r, g, b, a);
-		}
-		Bitmap newBitmap;
-		newBitmap.width = w;
-		newBitmap.height = h;
-		newBitmap.pixels = dataCopy;
-		bitmaps.push_back(newBitmap);
-        stbi_image_free(data);
 
     }
     if (materialData.contains("emission")) {
@@ -176,4 +164,193 @@ int Scene::loadMaterial(const json& materialData) {
 
     materials.push_back(newMaterial);
     return 1;
+}
+
+int Scene::loadGeom(const json& shapeData) {
+	Geom newGeom;
+	// Load transformations
+	if (shapeData.contains("transform")) {
+		auto transform = shapeData["transform"];
+		newGeom.transform.translation = glm::vec3(transform["translate"][0], transform["translate"][1], transform["translate"][2]);
+		newGeom.transform.rotation = glm::vec3(transform["rotate"][0], transform["rotate"][1], transform["rotate"][2]);
+		newGeom.transform.scale = glm::vec3(transform["scale"][0], transform["scale"][1], transform["scale"][2]);
+	}
+	else {
+		// Default transformations
+		newGeom.transform.translation = glm::vec3(0.0f);
+		newGeom.transform.rotation = glm::vec3(0.0f);
+		newGeom.transform.scale = glm::vec3(1.0f);
+	}
+
+
+	newGeom.transform.transform = utilityCore::buildTransformationMatrix(newGeom.transform.translation, newGeom.transform.rotation, newGeom.transform.scale);
+	newGeom.transform.inverseTransform = glm::inverse(newGeom.transform.transform);
+	newGeom.transform.invTranspose = glm::inverseTranspose(newGeom.transform.transform);
+
+	string type = shapeData["type"];
+	if (type == "sphere") {
+		cout << endl << "Creating new sphere..." << endl;
+		newGeom.type = Primitive::SPHERE;
+	}
+	else if (type == "cube") {
+		cout << endl <<"Creating new cube..." << endl;
+		newGeom.type = Primitive::CUBE;
+	}
+	else if (type == "obj") {
+		cout << endl<< "Creating new Triangle Mesh..." << endl;
+		bool usemtl = false;
+		if (shapeData.contains("usemtl")) {
+			usemtl = shapeData["usemtl"];
+		}
+		newGeom.type = Primitive::TRIANGLE;
+		if (shapeData.contains("filename")) {
+			string obj_file = workdir + string(shapeData["filename"]);
+			cout << endl << "Loading obj file from " << obj_file << "..." << endl;
+			if (loadObj(obj_file, newGeom.transform, usemtl) == -1) { return -1; }
+			if (usemtl) { return 1; }
+			newGeom.trimeshId = trimeshes.size() - 1;
+		}
+		else {
+			cout << endl << "No filename provided for obj shape!" << endl;
+			return -1;
+		}
+	}
+	else {
+		cout << endl << "Unknown shape type: " << type << endl;
+		return -1;
+	}
+
+	// Link material (bsdf)
+	if (shapeData.contains("bsdf"))
+		newGeom.materialId = shapeData["bsdf"];
+	else {
+		// Default material
+		newGeom.materialId = 0;
+	}
+	cout << "Connecting Geom to Material " << newGeom.materialId << "..." << endl;
+
+	geoms.push_back(newGeom);
+	return 1;
+}
+
+int Scene::loadObj(const string& obj_file,const Transform& trans, bool usemtl) {
+    TriangleMesh trimesh;
+    tinyobj::attrib_t attrib;
+    std::vector<tinyobj::shape_t> shapes;
+    std::vector<tinyobj::material_t> to_materials;
+    std::string warn, err;
+	std::string base_dir = obj_file.substr(0, obj_file.find_last_of("/"));
+
+	if (!tinyobj::LoadObj(&attrib, &shapes, &to_materials, &warn, &err, obj_file.c_str(), base_dir.c_str())) {
+		std::cerr << warn << err << std::endl;
+		return -1;
+	}
+
+	size_t numTriangles = 0;
+	for (size_t s = 0; s < shapes.size(); s++) {
+		numTriangles += shapes[s].mesh.num_face_vertices.size();
+	}
+	if (numTriangles == 0) {
+		cout << endl << "No triangles found in obj file!" << endl;
+		return -1;
+	}
+
+	std::cout << endl << "Obj file has materials size: " << to_materials.size() << std::endl;
+	int materialId_offset = this->materials.size();
+    for (size_t i = 0; i < to_materials.size() && usemtl; i++) {
+		cout << endl << "Creating new material " << this->materials.size() << "..." << endl;
+		Material newMaterial;
+		tinyobj::material_t &mat = to_materials[i];
+		newMaterial.type = MaterialType::DIFFUSE;
+		newMaterial.texture.color = glm::vec3(mat.diffuse[0], mat.diffuse[1], mat.diffuse[2]);
+		newMaterial.indexOfRefraction = mat.ior;
+        if (mat.diffuse_texname != "") {
+			newMaterial.texture.type = TextureType::BITMAP;
+			string bitmapPath = base_dir + "/" + mat.diffuse_texname;
+			if (loadBitmap(bitmapPath) == 1)
+				newMaterial.texture.bitmapId = bitmaps.size() - 1;
+            else {
+                return -1;
+            }
+        }
+		this->materials.push_back(newMaterial);
+    }
+
+    trimesh.num = numTriangles;
+    trimesh.triangles = new Triangle[numTriangles];
+	size_t triangleIndex = 0;
+    for (const auto& shape : shapes) {
+		size_t index_offset = 0;
+		size_t tri_index_start = triangleIndex;
+        for (size_t f = 0; f < shape.mesh.num_face_vertices.size(); f++) {
+			size_t fv = shape.mesh.num_face_vertices[f];
+            tinyobj::index_t idx0 = shape.mesh.indices[index_offset + 0];
+            tinyobj::index_t idx1 = shape.mesh.indices[index_offset + 1];
+            tinyobj::index_t idx2 = shape.mesh.indices[index_offset + 2];
+            index_offset += 3;
+
+			Triangle& tri = trimesh.triangles[triangleIndex++];
+			// Vertex
+			tri.v0 = glm::vec3(attrib.vertices[3 * idx0.vertex_index + 0], attrib.vertices[3 * idx0.vertex_index + 1], attrib.vertices[3 * idx0.vertex_index + 2]);
+			tri.v1 = glm::vec3(attrib.vertices[3 * idx1.vertex_index + 0], attrib.vertices[3 * idx1.vertex_index + 1], attrib.vertices[3 * idx1.vertex_index + 2]);
+			tri.v2 = glm::vec3(attrib.vertices[3 * idx2.vertex_index + 0], attrib.vertices[3 * idx2.vertex_index + 1], attrib.vertices[3 * idx2.vertex_index + 2]);
+
+			// Normals
+			bool has_normals = !attrib.normals.empty();
+			has_normals &= (idx0.normal_index >= 0 && idx1.normal_index >= 0 && idx2.normal_index >= 0);
+
+            if (has_normals) {
+				tri.n0 = glm::vec3(attrib.normals[3 * idx0.normal_index + 0], attrib.normals[3 * idx0.normal_index + 1], attrib.normals[3 * idx0.normal_index + 2]);
+				tri.n1 = glm::vec3(attrib.normals[3 * idx1.normal_index + 0], attrib.normals[3 * idx1.normal_index + 1], attrib.normals[3 * idx1.normal_index + 2]);
+				tri.n2 = glm::vec3(attrib.normals[3 * idx2.normal_index + 0], attrib.normals[3 * idx2.normal_index + 1], attrib.normals[3 * idx2.normal_index + 2]);
+            }
+            else {
+				glm::vec3 normal = glm::normalize(glm::cross(tri.v1 - tri.v0, tri.v2 - tri.v0));
+				tri.n0 = tri.n1 = tri.n2 = normal;
+            }
+
+			// UVs
+			bool has_uvs = !attrib.texcoords.empty();
+			has_uvs &= (idx0.texcoord_index >= 0 && idx1.texcoord_index >= 0 && idx2.texcoord_index >= 0);
+            if (has_uvs) {
+                tri.uv0 = glm::vec2(attrib.texcoords[2 * idx0.texcoord_index + 0], attrib.texcoords[2 * idx0.texcoord_index + 1]);
+                tri.uv1 = glm::vec2(attrib.texcoords[2 * idx1.texcoord_index + 0], attrib.texcoords[2 * idx1.texcoord_index + 1]);
+                tri.uv2 = glm::vec2(attrib.texcoords[2 * idx2.texcoord_index + 0], attrib.texcoords[2 * idx2.texcoord_index + 1]);
+			}
+            else {
+                tri.uv0 = tri.uv1 = tri.uv2 = glm::vec2(0.0f);
+            }
+        }
+    }
+
+	if (usemtl) {
+		size_t tri_index_offset = 0;
+		for (const auto& shape : shapes) {
+
+			cout << endl << "Creating new trimesh..." << endl;
+			size_t face_size = shape.mesh.num_face_vertices.size();
+			TriangleMesh new_trimesh;
+			new_trimesh.num = face_size;
+			new_trimesh.triangles = new Triangle[face_size];
+			memcpy(new_trimesh.triangles, trimesh.triangles + tri_index_offset, face_size * sizeof(Triangle));
+			trimeshes.push_back(new_trimesh);
+			Geom newGeom;
+			newGeom.type = Primitive::TRIANGLE;
+			newGeom.trimeshId = trimeshes.size() - 1;
+			if (shape.mesh.material_ids[0] == -1)
+				newGeom.materialId = 0;
+			else
+				newGeom.materialId = shape.mesh.material_ids[0] + materialId_offset;
+
+			cout << "Connecting Geom to Material " << newGeom.materialId << "..." << endl;
+			newGeom.transform = trans;
+			geoms.push_back(newGeom);
+			tri_index_offset += face_size;
+		}
+		delete[] trimesh.triangles;
+		return 1;
+	}
+
+	trimeshes.push_back(trimesh);
+	return 1;
 }

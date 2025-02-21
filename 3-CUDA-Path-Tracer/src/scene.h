@@ -10,6 +10,7 @@
 #include "glm/glm.hpp"
 #include "utilities.h"
 #include "sceneStructs.h"
+#include "tiny_obj_loader.h"
 
 using namespace std;
 using json = nlohmann::json;
@@ -18,12 +19,10 @@ class Scene {
 private:
 	string workdir;
     ifstream fp_in;
-    int loadMaterial(string materialid);
-    int loadGeom(string objectid);
-    int loadCamera();
-
+    int loadBitmap(const string& bitmapPath);
     int loadMaterial(const json& materialData);
     int loadGeom(const json& geomData);
+    int loadObj(const string& obj_file,const Transform& transform, bool usemtl = false);
     int loadCamera(const json& cameraData);
 
 public:
@@ -33,5 +32,6 @@ public:
     std::vector<Geom> geoms;
     std::vector<Material> materials;
     std::vector<Bitmap> bitmaps;
+	std::vector<TriangleMesh> trimeshes;
     RenderState state;
 };

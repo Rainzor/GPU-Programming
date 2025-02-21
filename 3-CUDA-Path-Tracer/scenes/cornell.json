@@ -20,7 +20,7 @@
     "shape": [
         {
             "type": "cube",
-            "bsdf": 0,
+            "bsdf": 1,
             "transform": {
                 "translate": [0, 10, 0],
                 "rotate": [0, 0, 0],
@@ -29,7 +29,6 @@
         },
         {
             "type": "cube",
-            "bsdf": 1,
             "transform": {
                 "translate": [0, 0, 0],
                 "rotate": [0, 0, 0],
@@ -38,7 +37,6 @@
         },
         {
             "type": "cube",
-            "bsdf": 1,
             "transform": {
                 "translate": [0, 10, 0],
                 "rotate": [0, 0, 90],
@@ -47,7 +45,6 @@
         },
         {
             "type": "cube",
-            "bsdf": 1,
             "transform": {
                 "translate": [0, 5, -5],
                 "rotate": [0, 90, 0],
@@ -84,13 +81,13 @@
     ],
     "bsdf":[
         {
+            "type": "diffuse",
+            "rgb": [0.98, 0.98, 0.98]
+        },
+        {
             "type": "light",
             "rgb": [1, 1, 1],
             "emission": 5
-        },
-        {
-            "type": "diffuse",
-            "rgb": [0.98, 0.98, 0.98]
         },
         {
             "type": "diffuse",

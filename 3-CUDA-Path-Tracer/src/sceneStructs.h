@@ -8,14 +8,17 @@
 #include <thrust/remove.h>
 #include <thrust/execution_policy.h>
 #include <thrust/functional.h>
+#include <thrust/random.h>
 
 #include "glm/glm.hpp"
 
 #define BACKGROUND_COLOR (glm::vec3(0.1f))
-
+#define MIN(a,b) (((a) < (b)) ? (a) : (b))
+#define MAX(a,b) (((a) > (b)) ? (a) : (b))
 enum Primitive {
     SPHERE,
     CUBE,
+    RECT,
     TRIANGLE,
 };
 
@@ -38,27 +41,35 @@ struct Triangle{
 	glm::vec2 uv0, uv1, uv2;
 };
 
+struct Rectangle {
+    float x0, x1, y0, y1, k;
+};
+
 struct TriangleMesh {
 	Triangle* triangles;
 	size_t num;
-};
+};    
 
+struct Transform {
+    glm::vec3 translation = glm::vec3(0.0f);
+    glm::vec3 rotation = glm::vec3(0.0f);
+    glm::vec3 scale = glm::vec3(1.0f);
+    glm::mat4 transform;
+    glm::mat4 inverseTransform;
+    glm::mat4 invTranspose;
+};
 struct Geom {
     enum Primitive type;
 	size_t trimeshId;
     size_t materialId;
-    glm::vec3 translation;
-    glm::vec3 rotation;
-    glm::vec3 scale;
-    glm::mat4 transform;
-    glm::mat4 inverseTransform;
-    glm::mat4 invTranspose;
+    Transform transform;
 };
 
 enum TextureType {
     RGB,
     BITMAP,
 };
+
 struct Texture {
     TextureType type = RGB;
     glm::vec3 color = glm::vec3(0.0f);
