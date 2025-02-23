@@ -4,7 +4,6 @@
 #include <glm/gtx/intersect.hpp>
 #include "sceneStructs.h"
 #include "../utilities.h"
-#include "bvh.h"
 
 /**
  * Handy-dandy hash function that provides seeds for random number generation.
@@ -19,22 +18,12 @@ __host__ __device__ inline unsigned int utilhash(unsigned int a) {
     return a;
 }
 
-// CHECKITOUT
-/**
- * Compute a point at parameter value `t` on ray `r`.
- * Falls slightly short so that it doesn't intersect the object it's hitting.
- */
-__host__ __device__ glm::vec3 getPointOnRay(Ray r, float t) {
-    return r.origin + (t - 0.00001f) * glm::normalize(r.direction);
-}
-
 /**
  * Multiplies a mat4 and a vec4 and returns a vec3 clipped from the vec4.
  */
 __host__ __device__ glm::vec3 multiplyMV(glm::mat4 m, glm::vec4 v) {
     return glm::vec3(m * v);
 }
-
 
 /**
  * Test intersection between a ray and a transformed cube. Untransformed,
@@ -43,12 +32,12 @@ __host__ __device__ glm::vec3 multiplyMV(glm::mat4 m, glm::vec4 v) {
  * @param Intersection       Output the record of the intersection.
  * @return                   Whether the intersection test was successful.
  */
-__host__ __device__ bool boxIntersectionTest(Ray r, int tmax,
-        Intersection & intersection, bool &outside) {
+__host__ __device__ bool boxIntersectionTest(Ray r, float tmax,
+        Intersection & intersection) {
 	intersection.t = -1;
 	glm::vec3 intersectionPoint;
     Ray &q = r;
-
+	bool outside;
 
     float tmin = -1e38f;
     //float tmax = 1e38f;
@@ -84,6 +73,7 @@ __host__ __device__ bool boxIntersectionTest(Ray r, int tmax,
 
 		intersection.t = tmin;
 		intersection.surfaceNormal = tmin_n;
+		intersection.outside = outside;
 		return true;
     }
     return false;
@@ -100,12 +90,12 @@ __host__ __device__ bool boxIntersectionTest(Ray r, int tmax,
  * @return                   Whether the intersection test was successful.
  */
 __host__ __device__ bool sphereIntersectionTest(Ray r, float tmax,
-        Intersection& intersection, bool &outside) {
+        Intersection& intersection) {
 	glm::vec3 intersectionPoint;
     glm::vec3 normal;
 	intersection.t = -1;
     float radius = 1.f;
-
+	bool outside;
 
 	Ray &rt = r;
 
@@ -152,6 +142,7 @@ __host__ __device__ bool sphereIntersectionTest(Ray r, float tmax,
 	intersection.surfaceNormal = normal;
 	intersection.uv = uv;
 	intersection.t = t;
+	intersection.outside = outside;
 	return true;
 }
 
@@ -161,18 +152,16 @@ __host__ __device__ bool sphereIntersectionTest(Ray r, float tmax,
 * @param  r				    The ray to test.
 * @param  tmax			    The maximum distance along the ray to test.
 * @param  intersection      Output the record of the intersection.
-* @param  outside           Whether the ray came from outside the triangle mesh.
 * @return                   Whether the intersection test was successful.
 */
 
 __host__ __device__ bool trimeshIntersectionTest(Ray r, float tmax,
-	Intersection& intersection, bool& outside, Triangle* triangles, BVHNode* bvh_nodes) {
+	Intersection& intersection, Triangle* triangles, BVHNode* bvh_nodes) {
 	glm::vec3 intersectionPoint;
 	glm::vec3 normal;
 	intersection.t = -1;
 
     Ray &q = r;
-
 	float tmin = 0;
 	float t = tmax;
 	glm::vec3 weight;
@@ -252,8 +241,125 @@ __host__ __device__ bool trimeshIntersectionTest(Ray r, float tmax,
 		intersection.uv = weight.x * triangles[0].uv0 +
 			              weight.y * triangles[0].uv1 +
 			              weight.z * triangles[0].uv2;
-		outside = glm::dot(q.direction, normal) < 0;
+		intersection.outside = glm::dot(q.direction, normal) < 0;
 		return true;
 	}
 	return false;
+}
+
+
+
+__host__ __device__ bool worldIntersectionTest(
+    Ray ray, float tmax,
+    Intersection& intersection,
+	GeomGPU* geoms,
+    BVHNode* geomBVHs
+    ) {
+	bool outside;
+    float final_t = tmax;
+	Intersection test_intersection;
+    glm::vec3 intersect_point;
+    glm::vec3 normal;
+    bool is_intersect = false;
+
+    // naive parse through global geoms
+    bool anyhit = false;
+
+    BVHNode* stack[STACK_SIZE];
+    BVHNode** stackPtr = stack;
+    *stackPtr = NULL;
+
+    int stack_size = 0;
+    float t_root_max = FLT_MAX;
+    float t_root_min = 0;
+    if (!geomBVHs[0].bbox.intersect(ray, t_root_min, t_root_max)) {
+        intersection.t = -1.0f;
+        return false;
+    }
+
+    stack_size++;
+    *(++stackPtr) = &geomBVHs[0];
+
+	while (stack_size > 0 && stack_size < STACK_SIZE) {
+		BVHNode* node = *(stackPtr--);
+		stack_size--;
+		if (node == NULL)
+			break;
+		else {
+
+			if (node->isLeaf()) {
+				Ray local_ray = ray;
+				GeomGPU& geom = geoms[node->primId];
+				local_ray.origin = multiplyMV(geom.transform.inverseTransform, glm::vec4(local_ray.origin, 1.0f));
+				local_ray.direction = glm::normalize(multiplyMV(geom.transform.inverseTransform, glm::vec4(local_ray.direction, 0.0f)));
+
+				test_intersection.t = -1.0f;
+				is_intersect = false;
+
+				if (geom.type == Primitive::CUBE)
+				{
+					is_intersect = boxIntersectionTest(local_ray, final_t, test_intersection);
+				}
+				else if (geom.type == Primitive::SPHERE)
+				{
+					is_intersect = sphereIntersectionTest(local_ray, final_t, test_intersection);
+				}
+				else if (geom.type == Primitive::TRIANGLE) {
+					is_intersect = trimeshIntersectionTest(local_ray, final_t, test_intersection, geom.dev_triangles, geom.dev_bvh_nodes);
+				}
+
+				if (is_intersect) {
+					intersect_point = multiplyMV(geom.transform.transform, glm::vec4(getPointOnRay(local_ray, test_intersection.t), 1.0f));
+					normal = glm::normalize(multiplyMV(geom.transform.invTranspose, glm::vec4(test_intersection.surfaceNormal, 0.0f)));
+					test_intersection.t = glm::length(intersect_point - ray.origin);
+					test_intersection.surfaceNormal = normal;
+					test_intersection.materialId = geom.materialId;
+					// Compute the minimum t from the intersection tests to determine 
+					// what scene geometry object was hit first.
+					if (test_intersection.t < final_t) {
+						final_t = test_intersection.t;
+						intersection = test_intersection;
+						anyhit = true;
+					}
+				}
+
+			}
+			else {
+				float tl_min = 0;
+				float tl_max = final_t;
+				float tr_min = 0;
+				float tr_max = final_t;
+
+				bool hit_left = false, hit_right = false;
+				if (node->leftId != -1)
+					hit_left = geomBVHs[node->leftId].bbox.intersect(ray, tl_min, tl_max);
+				if (node->rightId != -1)
+					hit_right = geomBVHs[node->rightId].bbox.intersect(ray, tr_min, tr_max);
+				if (hit_left && hit_right) {
+					if (tl_min < tr_min) {
+						*(++stackPtr) = &geomBVHs[node->rightId];
+						stack_size++;
+						*(++stackPtr) = &geomBVHs[node->leftId];
+						stack_size++;
+					}
+					else {
+						*(++stackPtr) = &geomBVHs[node->leftId];
+						stack_size++;
+						*(++stackPtr) = &geomBVHs[node->rightId];
+						stack_size++;
+					}
+				}
+				else if (hit_left) {
+					*(++stackPtr) = &geomBVHs[node->leftId];
+					stack_size++;
+				}
+				else if (hit_right) {
+					*(++stackPtr) = &geomBVHs[node->rightId];
+					stack_size++;
+				}
+			}
+		}
+	}
+
+	return anyhit;
 }

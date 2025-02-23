@@ -5,7 +5,9 @@
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
-#include "sceneStructs.h"
+#include <iostream>
+#include "ray.h"
+#include "shape.h"
 
 #define STACK_SIZE 256
 

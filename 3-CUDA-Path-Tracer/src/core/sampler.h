@@ -2,7 +2,15 @@
 
 #include "intersections.h"
 
-// CHECKITOUT
+
+
+// MIS balance heuristic
+__host__ __device__ float powerHeuristic(float f, float g, int nf=1, int ng=1) {
+    f = nf * f;
+    g = ng * g;
+    return (f * f) / (g * g + f * f);
+}
+
 /**
  * Computes a cosine-weighted random direction on a hemisphere surface.
  * Used for diffuse lighting.
@@ -87,19 +95,19 @@ __host__ __device__
 Sample scatterRay(
         const PathSegment & pathSegment,
         const Intersection & intersection,
-        const Material &material,
+        const Material *material,
 	    const glm::vec3& abedo,
         thrust::default_random_engine &rng) {
     // ! Scatter the ray according to the type of material
     thrust::uniform_real_distribution<float> u01(0, 1);
     Sample sample;
     glm::vec3 direction = glm::vec3(0.f);
-    if (material.type == MaterialType::SPECULAR){ // Perfect Reflection
+    if (material->type == MaterialType::SPECULAR){ // Perfect Reflection
         direction = glm::reflect(pathSegment.ray.direction, intersection.surfaceNormal);
         float cosTheta = glm::dot(direction, intersection.surfaceNormal);
         sample.BSDF = abedo / cosTheta;
         sample.pdf = 1.f;
-    } else if (material.type == MaterialType::DIFFUSE){ // Lambertian
+    } else if (material->type == MaterialType::DIFFUSE){ // Lambertian
         direction = calculateRandomDirectionOnHemisphere(intersection.surfaceNormal, rng);
         sample.BSDF = abedo / PI;
         sample.pdf = glm::dot(direction, intersection.surfaceNormal) / PI;
