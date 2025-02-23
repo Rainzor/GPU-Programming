@@ -16,7 +16,7 @@
 #include "glm/gtx/norm.hpp"
 #include "utilities.h"
 #include "intersections.h"
-#include "interactions.h"
+#include "sampler.h"
 
 #define ERRORCHECK 1
 
@@ -95,7 +95,9 @@ static Scene* hst_scene = NULL;
 static GuiDataContainer* guiData = NULL;
 static glm::vec3* dev_image = NULL;
 static Geom* dev_geoms = NULL;
-static TriangleMesh* dev_trimeshes = NULL;
+static BVHNode* dev_scene_bvh = NULL;
+static Triangle** dev_trimesh_ptr = NULL;
+static BVHNode** dev_tribvh_ptr = NULL;
 static Material* dev_materials = NULL;
 static Bitmap* dev_bmp_ptr = NULL;
 static PathSegment* dev_paths = NULL;
@@ -103,8 +105,6 @@ static Intersection* dev_intersections = NULL;
 static cudaTextureObject_t* hst_texs = NULL;
 static cudaTextureObject_t* dev_texs = NULL;
 
-// TODO: static variables for device memory, any extra info you need, etc
-// ...
 
 void InitDataContainer(GuiDataContainer* imGuiData)
 {
@@ -138,7 +138,8 @@ void resourceInit(Scene *scene) {
 	cudaMemcpy(dev_materials, scene->materials.data(), scene->materials.size() * sizeof(Material), cudaMemcpyHostToDevice);
 
 	if (!scene->trimeshes.empty()) {
-		cudaMalloc(&dev_trimeshes, scene->trimeshes.size() * sizeof(TriangleMesh));
+		//cudaMalloc((void**)&dev_trimeshes, scene->trimeshes.size() * sizeof(TriangleMesh));
+		cudaMalloc((void**)&dev_trimesh_ptr, scene->trimeshes.size() * sizeof(Triangle*));
 		for (int i = 0; i < scene->trimeshes.size(); i++)
 		{
 			int numTriangles = scene->trimeshes[i].num;
@@ -146,12 +147,36 @@ void resourceInit(Scene *scene) {
 			cudaMalloc(&(dev_triangle), numTriangles * sizeof(Triangle));
 			cudaMemcpy(dev_triangle, scene->trimeshes[i].triangles, numTriangles * sizeof(Triangle), cudaMemcpyHostToDevice);
 
-			cudaMemcpy(&(dev_trimeshes[i].triangles), &dev_triangle, sizeof(unsigned char*), cudaMemcpyHostToDevice);
-			cudaMemcpy(&(dev_trimeshes[i].num), &(scene->trimeshes[i].num), sizeof(int), cudaMemcpyHostToDevice);
+			cudaMemcpy((void**)&(dev_trimesh_ptr[i]), &dev_triangle, sizeof(unsigned char*), cudaMemcpyHostToDevice);
 		}
 	}
 	else {
-		dev_trimeshes = NULL;
+		dev_trimesh_ptr = NULL;
+	}
+
+	if (!scene->tri_bvhs.empty()){
+		cudaMalloc((void**)&dev_tribvh_ptr, scene->tri_bvhs.size() * sizeof(BVHNode*));
+
+		for (int i = 0; i < scene->tri_bvhs.size(); i++)
+		{
+			int numNodes = scene->tri_bvhs[i].bvh_nodes.size();
+			BVHNode* dev_tribvh_nodes = NULL;
+			cudaMalloc((void**)&dev_tribvh_nodes, numNodes * sizeof(BVHNode));
+			cudaMemcpy(dev_tribvh_nodes, scene->tri_bvhs[i].bvh_nodes.data(), numNodes * sizeof(BVHNode), cudaMemcpyHostToDevice);
+
+			cudaMemcpy((void**)&(dev_tribvh_ptr[i]), &dev_tribvh_nodes, sizeof(BVHNode*), cudaMemcpyHostToDevice);
+
+		}
+	} else {
+		dev_tribvh_ptr = NULL;
+	}
+	int numNodeds = scene->scene_bvh.bvh_nodes.size();
+	if (numNodeds > 0) {
+		cudaMalloc(&dev_scene_bvh, sizeof(BVHNode) * numNodeds);
+		cudaMemcpy(dev_scene_bvh, scene->scene_bvh.bvh_nodes.data(), sizeof(BVHNode) * numNodeds, cudaMemcpyHostToDevice);
+	}
+	else {
+		dev_scene_bvh = NULL;
 	}
 
 	if (!scene->bitmaps.empty()) {
@@ -211,11 +236,22 @@ void resourceFree() {
 	if (hst_scene == NULL)
 		return;
 
-	if (dev_trimeshes != NULL) {
+	if (dev_trimesh_ptr != NULL) {
 		for (int i = 0; i < hst_scene->trimeshes.size(); i++) {
-			cudaFree(dev_trimeshes[i].triangles);
+			cudaFree(dev_trimesh_ptr[i]);
 		}
-		cudaFree(dev_trimeshes);
+		cudaFree(dev_trimesh_ptr);
+	}
+
+	if (dev_tribvh_ptr != NULL) {
+		for (int i = 0; i < hst_scene->tri_bvhs.size(); i++) {
+			cudaFree(dev_tribvh_ptr[i]);
+		}
+		cudaFree(dev_tribvh_ptr);
+	}
+
+	if (dev_scene_bvh != NULL) {
+		cudaFree(dev_scene_bvh);
 	}
 
 	// TODO: clean up any extra device memory you created
@@ -226,21 +262,20 @@ void resourceFree() {
 		}
 		cudaFree(dev_bmp_ptr);
 	}
-
-	cudaFree(dev_texs);
+	if (dev_texs != NULL)
+		cudaFree(dev_texs);
 
 	for (int i = 0; i < numBitmaps; i++)
 	{
 		cudaTextureObject_t texObj = hst_texs[i];
 
-		// 获取纹理对象关联的cudaArray
+		// Get the cudaArray from the texture object
 		cudaResourceDesc resDesc;
 		cudaGetTextureObjectResourceDesc(&resDesc, texObj);
 		cudaArray_t array = resDesc.res.array.array;
 
-		// 销毁纹理对象
+		// Destroy the texture object and free the cudaArray
 		cudaDestroyTextureObject(texObj);
-		// 释放cudaArray
 		cudaFreeArray(array);
 	}
 	delete[] hst_texs;
@@ -279,6 +314,7 @@ __global__ void generateRayFromCamera(Camera cam, int iter, int traceDepth, Path
 		thrust::default_random_engine rng = makeSeededRandomEngine(iter, index, 0);
 		thrust::uniform_real_distribution<float> u01(0, 1);
 		glm::vec2 bias = glm::vec2(u01(rng)-0.5f, u01(rng)-0.5f);
+		//glm::vec2 bias = glm::vec2(0,0);
 		segment.ray.direction = glm::normalize(cam.view
 			- cam.right * cam.pixelLength.x * ((float)x - (float)cam.resolution.x * 0.5f + bias.x)
 			- cam.up * cam.pixelLength.y * ((float)y - (float)cam.resolution.y * 0.5f + bias.y)
@@ -314,8 +350,9 @@ __global__ void computeIntersections(
 	int num_paths,
 	PathSegment* pathSegments,
 	Geom* geoms,
-	int geoms_size,
-	TriangleMesh* trimeshes,
+	BVHNode* geomBVHs,
+	Triangle** trimeshes_ptr,
+	BVHNode** tribvhs_ptr,
 	Intersection* intersections)
 {
 	int path_index = blockIdx.x * blockDim.x + threadIdx.x;
@@ -324,54 +361,121 @@ __global__ void computeIntersections(
 	{
 		PathSegment pathSegment = pathSegments[path_index];
 
-		float t;
-		glm::vec3 intersect_point;
-		glm::vec3 normal;
+		float final_t = FLT_MAX;
 		float t_min = FLT_MAX;
-		int hit_geom_index = -1;
 		bool outside = true;
 
-		glm::vec3 tmp_intersect;
-		glm::vec3 tmp_normal;
-
 		Intersection tmp_intersection;
-		Intersection intersection;
+		Intersection min_intersection;
+		glm::vec3 intersect_point;
+		glm::vec3 normal;
+		bool is_intersect = false;
 
 		// naive parse through global geoms
 		bool anyhit = false;
-		for (int i = 0; i < geoms_size; i++)
-		{
-			Geom& geom = geoms[i];
 
-			if (geom.type == Primitive::CUBE)
-			{
-				boxIntersectionTest(geom, pathSegment.ray, t_min, tmp_intersection, outside);
-			}
-			else if (geom.type == Primitive::SPHERE)
-			{
-				sphereIntersectionTest(geom, pathSegment.ray, t_min, tmp_intersection, outside);
-			}
-			else if (geom.type == Primitive::TRIANGLE) {
-				trimeshIntersectionTest(geom, pathSegment.ray, t_min, tmp_intersection, outside, trimeshes[geom.trimeshId]);
-				//tmp_intersection.t = -1.0f;
-			}
-			// TODO: add more intersection tests here... triangle? metaball? CSG?
 
-			// Compute the minimum t from the intersection tests to determine what
-			// scene geometry object was hit first.
-			t = tmp_intersection.t;
-			if (t > 0.0f && t_min > t)
-			{
-				t_min = t;
-				intersection = tmp_intersection;
-				anyhit = true;
+		BVHNode* stack[STACK_SIZE];
+		BVHNode** stackPtr = stack;
+		*stackPtr = NULL;
+
+		int stack_size = 0;
+		float t_root_max = FLT_MAX;
+		float t_root_min = 0;
+		if (!geomBVHs[0].bbox.intersect(pathSegment.ray, t_root_min, t_root_max)) {
+			intersections[path_index].t = -1.0f;
+			return;
+		}
+
+		stack_size++;
+		*(++stackPtr) = &geomBVHs[0];
+
+		while (stack_size > 0 && stack_size < STACK_SIZE) {
+			BVHNode* node = *(stackPtr--);
+			stack_size--;
+			if (node == NULL)
+				break;
+			else {
+
+				if (node->isLeaf()) {
+					Ray local_ray = pathSegment.ray;
+					Geom& geom = geoms[node->primId];
+					local_ray.origin = multiplyMV(geom.transform.inverseTransform, glm::vec4(local_ray.origin, 1.0f));
+					local_ray.direction = glm::normalize(multiplyMV(geom.transform.inverseTransform, glm::vec4(local_ray.direction, 0.0f)));
+
+					tmp_intersection.t = -1.0f;
+					is_intersect = false;
+
+					if (geom.type == Primitive::CUBE)
+					{
+						is_intersect = boxIntersectionTest(local_ray, final_t, tmp_intersection, outside);
+					}
+					else if (geom.type == Primitive::SPHERE)
+					{
+						is_intersect = sphereIntersectionTest(local_ray, final_t, tmp_intersection, outside);
+					}
+					else if (geom.type == Primitive::TRIANGLE) {
+						is_intersect = trimeshIntersectionTest(local_ray, final_t, tmp_intersection, outside, trimeshes_ptr[geom.trimeshId], tribvhs_ptr[geom.trimeshId]);
+					}
+
+					if (is_intersect) {
+						intersect_point = multiplyMV(geom.transform.transform, glm::vec4(getPointOnRay(local_ray, tmp_intersection.t), 1.0f));
+						normal = glm::normalize(multiplyMV(geom.transform.invTranspose, glm::vec4(tmp_intersection.surfaceNormal, 0.0f)));
+						tmp_intersection.t = glm::length(intersect_point - pathSegment.ray.origin);
+						tmp_intersection.surfaceNormal = normal;
+						tmp_intersection.materialId = geom.materialId;
+
+						// Compute the minimum t from the intersection tests to determine 
+						// what scene geometry object was hit first.
+						if (tmp_intersection.t < final_t) {
+							final_t = tmp_intersection.t;
+							min_intersection = tmp_intersection;
+							anyhit = true;
+						}
+					}
+
+				}
+				else {
+					float tl_min = 0;
+					float tl_max = final_t;
+					float tr_min = 0;
+					float tr_max = final_t;
+
+					bool hit_left = false, hit_right = false;
+					if(node->leftId != -1)
+						hit_left = geomBVHs[node->leftId].bbox.intersect(pathSegment.ray, tl_min, tl_max);
+					if (node->rightId != -1)
+						hit_right = geomBVHs[node->rightId].bbox.intersect(pathSegment.ray, tr_min, tr_max);
+					if (hit_left && hit_right) {
+						if (tl_min < tr_min) {
+							*(++stackPtr) = &geomBVHs[node->rightId];
+							stack_size++;
+							*(++stackPtr) = &geomBVHs[node->leftId];
+							stack_size++;
+						}
+						else {
+							*(++stackPtr) = &geomBVHs[node->leftId];
+							stack_size++;
+							*(++stackPtr) = &geomBVHs[node->rightId];
+							stack_size++;
+						}
+					}
+					else if (hit_left) {
+						*(++stackPtr) = &geomBVHs[node->leftId];
+						stack_size++;
+					}
+					else if (hit_right) {
+						*(++stackPtr) = &geomBVHs[node->rightId];
+						stack_size++;
+					}
+				}
 			}
 		}
 
 		if (!anyhit){
 			intersections[path_index].t = -1.0f;
 		} else {
-			intersections[path_index] = intersection;
+			intersections[path_index] = min_intersection;
 		}
 	}
 }
@@ -588,8 +692,9 @@ void pathtrace(uchar4* pbo, int frame, int iter) {
 			num_paths,
 			dev_paths,
 			dev_geoms,
-			hst_scene->geoms.size(),
-			dev_trimeshes,
+			dev_scene_bvh,
+			dev_trimesh_ptr,
+			dev_tribvh_ptr,
 			dev_intersections
 			);
 		checkCUDAError("trace one bounce");
@@ -609,7 +714,6 @@ void pathtrace(uchar4* pbo, int frame, int iter) {
 			dev_intersections,
 			dev_paths,
 			dev_materials,
-			//dev_bmp_ptr,
 			dev_texs
 			);
 		

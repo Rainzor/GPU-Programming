@@ -69,7 +69,7 @@ include_directories(${JSON_ROOT_DIR}/include/nlohmann)
 set(headers
     src/main.h
     src/image.h
-    src/interactions.h
+    src/sampler.h
     src/intersections.h
     src/glslUtility.hpp
     src/pathtrace.h
@@ -86,9 +86,10 @@ set(headers
     src/ImGui/imgui_internal.h 
     src/ImGui/imstb_rectpack.h 
     src/ImGui/imstb_textedit.h 
-    src/ImGui/imstb_truetype.h 
+    src/ImGui/imstb_truetype.h
 
     src/tiny_obj_loader.h
+    src/bvh.h
     )
 
 set(sources
@@ -110,6 +111,7 @@ set(sources
     src/ImGui/imgui_widgets.cpp 
 
     src/tiny_obj_loader.cc
+    src/bvh.cu
     )
 
 list(SORT headers)

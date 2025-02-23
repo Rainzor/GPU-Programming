@@ -43,6 +43,9 @@ Scene::Scene(string filename) {
 				throw;
 			}
         }
+
+		// Build BVH
+		buildBVH();
     }
     fp_in.close();
 }
@@ -206,9 +209,14 @@ int Scene::loadGeom(const json& shapeData) {
 		if (shapeData.contains("filename")) {
 			string obj_file = workdir + string(shapeData["filename"]);
 			cout << endl << "Loading obj file from " << obj_file << "..." << endl;
-			if (loadObj(obj_file, newGeom.transform, usemtl) == -1) { return -1; }
-			if (usemtl) { return 1; }
+			if (loadObj(obj_file, newGeom.transform, usemtl) == -1) { 
+				return -1; 
+			}
+			if (usemtl) { 
+				return 1; 
+			}
 			newGeom.trimeshId = trimeshes.size() - 1;
+			//newGeom.bbox = bvhs[newGeom.trimeshId].bvh_nodes[0].bbox;
 		}
 		else {
 			cout << endl << "No filename provided for obj shape!" << endl;
@@ -228,6 +236,7 @@ int Scene::loadGeom(const json& shapeData) {
 		newGeom.materialId = 0;
 	}
 	cout << "Connecting Geom to Material " << newGeom.materialId << "..." << endl;
+
 
 	geoms.push_back(newGeom);
 	return 1;
@@ -333,7 +342,9 @@ int Scene::loadObj(const string& obj_file,const Transform& trans, bool usemtl) {
 			new_trimesh.num = face_size;
 			new_trimesh.triangles = new Triangle[face_size];
 			memcpy(new_trimesh.triangles, trimesh.triangles + tri_index_offset, face_size * sizeof(Triangle));
+
 			trimeshes.push_back(new_trimesh);
+
 			Geom newGeom;
 			newGeom.type = Primitive::TRIANGLE;
 			newGeom.trimeshId = trimeshes.size() - 1;
@@ -349,8 +360,30 @@ int Scene::loadObj(const string& obj_file,const Transform& trans, bool usemtl) {
 		}
 		delete[] trimesh.triangles;
 		return 1;
+	} else {
+		trimeshes.push_back(trimesh);
+		return 1;
 	}
+}
 
-	trimeshes.push_back(trimesh);
-	return 1;
+void Scene::buildBVH() {
+	cout << "Building BVH for all geometries..." << endl;
+	for (int i = 0; i < trimeshes.size(); i++) {
+		cout << "Building BVH for trimesh " << i << "..." << endl;
+		BVH bvh(trimeshes[i]);
+		tri_bvhs.push_back(bvh);
+	}
+	std::vector<BBox> geo_bboxs;
+	for (int i = 0; i < geoms.size(); i++) {
+		BBox bb;
+		if (geoms[i].type == Primitive::TRIANGLE) {
+			bb = tri_bvhs[geoms[i].trimeshId].bvh_nodes[0].bbox;
+		}
+		else {
+			bb = BBox(geoms[i].type);
+		}
+		bb.transform(geoms[i].transform.transform);
+		geo_bboxs.push_back(bb);
+	}
+	scene_bvh = BVH(geo_bboxs);
 }

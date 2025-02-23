@@ -4,6 +4,7 @@
 #include <glm/gtx/intersect.hpp>
 #include "sceneStructs.h"
 #include "utilities.h"
+#include "bvh.h"
 
 /**
  * Handy-dandy hash function that provides seeds for random number generation.
@@ -24,7 +25,7 @@ __host__ __device__ inline unsigned int utilhash(unsigned int a) {
  * Falls slightly short so that it doesn't intersect the object it's hitting.
  */
 __host__ __device__ glm::vec3 getPointOnRay(Ray r, float t) {
-    return r.origin + (t - 0.001f) * glm::normalize(r.direction);
+    return r.origin + (t - 0.00001f) * glm::normalize(r.direction);
 }
 
 /**
@@ -42,13 +43,12 @@ __host__ __device__ glm::vec3 multiplyMV(glm::mat4 m, glm::vec4 v) {
  * @param Intersection       Output the record of the intersection.
  * @return                   Whether the intersection test was successful.
  */
-__host__ __device__ bool boxIntersectionTest(Geom box, Ray r, int tmax,
+__host__ __device__ bool boxIntersectionTest(Ray r, int tmax,
         Intersection & intersection, bool &outside) {
 	intersection.t = -1;
 	glm::vec3 intersectionPoint;
-    Ray q;
-    q.origin    =                multiplyMV(box.transform.inverseTransform, glm::vec4(r.origin   , 1.0f));
-    q.direction = glm::normalize(multiplyMV(box.transform.inverseTransform, glm::vec4(r.direction, 0.0f)));
+    Ray &q = r;
+
 
     float tmin = -1e38f;
     //float tmax = 1e38f;
@@ -81,10 +81,9 @@ __host__ __device__ bool boxIntersectionTest(Geom box, Ray r, int tmax,
             tmin_n = tmax_n;
             outside = false;
         }
-        intersectionPoint = multiplyMV(box.transform.transform, glm::vec4(getPointOnRay(q, tmin), 1.0f));
-        intersection.surfaceNormal = glm::normalize(multiplyMV(box.transform.invTranspose, glm::vec4(tmin_n, 0.0f)));
-		intersection.t = glm::length(r.origin - intersectionPoint);
-		intersection.materialId = box.materialId;
+
+		intersection.t = tmin;
+		intersection.surfaceNormal = tmin_n;
 		return true;
     }
     return false;
@@ -92,7 +91,7 @@ __host__ __device__ bool boxIntersectionTest(Geom box, Ray r, int tmax,
 
 /**
  * Test intersection between a ray and a transformed sphere. Untransformed,
- * the sphere always has radius 0.5 and is centered at the origin.
+ * the sphere always has radius 1 and is centered at the origin.
  *
  * @param  r				 The ray to test.
  * @param  tmax			     The maximum distance along the ray to test.
@@ -100,19 +99,15 @@ __host__ __device__ bool boxIntersectionTest(Geom box, Ray r, int tmax,
  * @param  outside           Whether the ray came from outside the sphere.
  * @return                   Whether the intersection test was successful.
  */
-__host__ __device__ bool sphereIntersectionTest(Geom sphere, Ray r, float tmax,
+__host__ __device__ bool sphereIntersectionTest(Ray r, float tmax,
         Intersection& intersection, bool &outside) {
 	glm::vec3 intersectionPoint;
     glm::vec3 normal;
 	intersection.t = -1;
-    float radius = .5;
+    float radius = 1.f;
 
-    glm::vec3 ro = multiplyMV(sphere.transform.inverseTransform, glm::vec4(r.origin, 1.0f));
-    glm::vec3 rd = glm::normalize(multiplyMV(sphere.transform.inverseTransform, glm::vec4(r.direction, 0.0f)));
 
-    Ray rt;
-    rt.origin = ro;
-    rt.direction = rd;
+	Ray &rt = r;
 
     float vDotDirection = glm::dot(rt.origin, rt.direction);
     float radicand = vDotDirection * vDotDirection - (glm::dot(rt.origin, rt.origin) - powf(radius, 2));
@@ -149,16 +144,14 @@ __host__ __device__ bool sphereIntersectionTest(Geom sphere, Ray r, float tmax,
 	uv.x = phi / (2 * PI);
 	uv.y = theta / PI;
 
-    intersectionPoint = multiplyMV(sphere.transform.transform, glm::vec4(objspaceIntersection, 1.f));
-    normal = glm::normalize(multiplyMV(sphere.transform.invTranspose, glm::vec4(objspaceIntersection, 0.f)));
+	normal = outward_normal;
     if (!outside) {
         normal = -normal;
     }
 
 	intersection.surfaceNormal = normal;
 	intersection.uv = uv;
-	intersection.t = glm::length(r.origin - intersectionPoint);
-	intersection.materialId = sphere.materialId;
+	intersection.t = t;
 	return true;
 }
 
@@ -172,47 +165,94 @@ __host__ __device__ bool sphereIntersectionTest(Geom sphere, Ray r, float tmax,
 * @return                   Whether the intersection test was successful.
 */
 
-__host__ __device__ bool trimeshIntersectionTest(Geom mesh, Ray r, float tmax,
-	Intersection& intersection, bool& outside, const TriangleMesh& trimesh) {
+__host__ __device__ bool trimeshIntersectionTest(Ray r, float tmax,
+	Intersection& intersection, bool& outside, Triangle* triangles, BVHNode* bvh_nodes) {
 	glm::vec3 intersectionPoint;
 	glm::vec3 normal;
 	intersection.t = -1;
 
-	Ray q;
-	q.origin = multiplyMV(mesh.transform.inverseTransform, glm::vec4(r.origin, 1.0f));
-	q.direction = glm::normalize(multiplyMV(mesh.transform.inverseTransform, glm::vec4(r.direction, 0.0f)));
-    
+    Ray &q = r;
+
+	float tmin = 0;
 	float t = tmax;
 	glm::vec3 weight;
-	for (size_t i = 0; i < trimesh.num; i++) {
-		Triangle &tri = trimesh.triangles[i];
-		glm::vec3 v0 = tri.v0;
-		glm::vec3 v1 = tri.v1;
-		glm::vec3 v2 = tri.v2;
-        glm::vec3 baryPos;
-		if (glm::intersectRayTriangle(q.origin, q.direction, v0, v1, v2, baryPos)) {
-			float t_temp = baryPos.z;
-			if (t_temp < t && t_temp > 0) {
-				t = t_temp;
-                weight = glm::vec3(1 - baryPos.x - baryPos.y, baryPos.x, baryPos.y);
-			}
-		}
+
+	BVHNode* stack[STACK_SIZE];
+	BVHNode** stackPtr = stack;
+
+	int stack_size = 0;
+	float t_root_max = tmax;
+	float t_root_min = tmin;
+    if (!bvh_nodes[0].bbox.intersect(q, t_root_min, t_root_max)) {
+		return false;
+    }
+	stack_size ++;
+	*(++stackPtr) = &bvh_nodes[0];
+	while(stack_size > 0 && stack_size < STACK_SIZE) {
+		BVHNode* node = *(stackPtr--); // pop
+		stack_size--;
+		if(node == NULL) break;
+        // Bounding box intersection check
+        else {
+            if (node->isLeaf()) {
+                Triangle& tri = triangles[node->primId];
+                glm::vec3 baryPos;
+                // Triangle-ray intersection check
+                if (glm::intersectRayTriangle(q.origin, q.direction, tri.v0, tri.v1, tri.v2, baryPos)) {
+                    float t_temp = baryPos.z;
+                    if (t_temp < t && t_temp > 0) {
+                        t = t_temp;
+                        weight = glm::vec3(1 - baryPos.x - baryPos.y, baryPos.x, baryPos.y);
+                    }
+                }
+            }
+            else {
+				float tl_min = tmin;
+				float tl_max = t;
+				float tr_min = tmin;
+				float tr_max = t;
+
+				bool hit_left =false, hit_right =  false;
+				if (node->leftId != -1)
+                    hit_left = bvh_nodes[node->leftId].bbox.intersect(q, tl_min, tl_max);
+				if (node->rightId != -1)
+                    hit_right = bvh_nodes[node->rightId].bbox.intersect(q, tr_min, tr_max);
+
+				if (hit_left && hit_right) {
+					if (tl_min < tr_min) {
+						stack_size += 2;
+						*(++stackPtr) = &bvh_nodes[node->rightId];
+						*(++stackPtr) = &bvh_nodes[node->leftId];
+					}
+					else {
+						stack_size += 2;
+						*(++stackPtr) = &bvh_nodes[node->leftId];
+						*(++stackPtr) = &bvh_nodes[node->rightId];
+					}
+				}
+				else if (hit_left) {
+					stack_size++;
+					*(++stackPtr) = &bvh_nodes[node->leftId];
+				}
+				else if (hit_right) {
+					stack_size++;
+					*(++stackPtr) = &bvh_nodes[node->rightId];
+				}
+            }
+        }
 	}
+
 	if (t < tmax) {
-		intersectionPoint = multiplyMV(mesh.transform.transform, glm::vec4(getPointOnRay(q, t), 1.0f));
-        
-		normal = weight.x * trimesh.triangles[0].n0 + 
-                 weight.y * trimesh.triangles[0].n1 + 
-                 weight.z * trimesh.triangles[0].n2;
-		normal = glm::normalize(multiplyMV(mesh.transform.invTranspose, glm::vec4(normal, 0.0f)));
+		normal = weight.x * triangles[0].n0 + 
+                 weight.y * triangles[0].n1 + 
+                 weight.z * triangles[0].n2;
 		intersection.surfaceNormal = normal;
-		intersection.t = glm::length(r.origin - intersectionPoint);
+		intersection.t = t;
 
-		intersection.uv = weight.x * trimesh.triangles[0].uv0 +
-			              weight.y * trimesh.triangles[0].uv1 +
-			              weight.z * trimesh.triangles[0].uv2;
-
-		intersection.materialId = mesh.materialId;
+		intersection.uv = weight.x * triangles[0].uv0 +
+			              weight.y * triangles[0].uv1 +
+			              weight.z * triangles[0].uv2;
+		outside = glm::dot(q.direction, normal) < 0;
 		return true;
 	}
 	return false;

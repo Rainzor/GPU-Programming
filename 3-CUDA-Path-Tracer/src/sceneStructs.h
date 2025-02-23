@@ -11,14 +11,12 @@
 #include <thrust/random.h>
 
 #include "glm/glm.hpp"
-
 #define BACKGROUND_COLOR (glm::vec3(0.1f))
 #define MIN(a,b) (((a) < (b)) ? (a) : (b))
 #define MAX(a,b) (((a) > (b)) ? (a) : (b))
 enum Primitive {
     SPHERE,
     CUBE,
-    RECT,
     TRIANGLE,
 };
 
@@ -35,29 +33,26 @@ struct Ray {
 };
 
 
+struct Transform {
+	glm::vec3 translation = glm::vec3(0.0f);
+	glm::vec3 rotation = glm::vec3(0.0f);
+	glm::vec3 scale = glm::vec3(1.0f);
+	glm::mat4 transform;
+	glm::mat4 inverseTransform;
+	glm::mat4 invTranspose;
+};
+
 struct Triangle{
 	glm::vec3 v0, v1, v2;
 	glm::vec3 n0, n1, n2;
 	glm::vec2 uv0, uv1, uv2;
 };
 
-struct Rectangle {
-    float x0, x1, y0, y1, k;
-};
-
 struct TriangleMesh {
 	Triangle* triangles;
 	size_t num;
-};    
-
-struct Transform {
-    glm::vec3 translation = glm::vec3(0.0f);
-    glm::vec3 rotation = glm::vec3(0.0f);
-    glm::vec3 scale = glm::vec3(1.0f);
-    glm::mat4 transform;
-    glm::mat4 inverseTransform;
-    glm::mat4 invTranspose;
 };
+
 struct Geom {
     enum Primitive type;
 	size_t trimeshId;
@@ -77,25 +72,27 @@ struct Texture {
 };
 
 struct Bitmap {
+public:
 	int width;
 	int height;
 	glm::u8vec4* pixels;
+    __host__ __device__ inline glm::vec3 getPixel(glm::vec2 uv) {
+        int i = uv.x * width;
+        int j = (1 - uv.y) * height;// flip y
+
+        if (i >= width) i = width - 1;
+        if (j >= height) j = height - 1;
+
+        int index = (i + j * width);
+        float r = pixels[index].r / 255.f;
+        float g = pixels[index].g / 255.f;
+        float b = pixels[index].b / 255.f;
+        float a = pixels[index].a / 255.f;
+        return glm::vec3(r, g, b) * a;
+    }
 };
 
-__host__ __device__ inline glm::vec3 getPixel(const Bitmap& bmp, glm::vec2 uv) {
-    int i = uv.x * bmp.width;
-	int j = (1 - uv.y) * bmp.height;// flip y
 
-    if (i >= bmp.width) i = bmp.width - 1;
-    if (j >= bmp.height) j = bmp.height - 1;
-
-    int index = (i + j * bmp.width);
-	float r = bmp.pixels[index].r / 255.f;
-	float g = bmp.pixels[index].g / 255.f;
-	float b = bmp.pixels[index].b / 255.f;
-	float a = bmp.pixels[index].a / 255.f;
-    return glm::vec3(r, g, b) * a;
-}
 
 struct Material {
     enum MaterialType type;

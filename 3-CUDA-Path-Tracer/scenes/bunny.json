@@ -15,7 +15,7 @@
     },
     "integrator": {
         "type": "path",
-        "maxdepth": 8
+        "maxdepth": 16
     },
     "shape": [
         {
@@ -31,7 +31,7 @@
         },
         {
             "type": "obj",
-            "filename": "models/cornell_box.obj",
+            "filename": "models/bunny.obj",
             "usemtl": true,
             "transform": {
                 "translate": [0, 0, 0],

@@ -11,6 +11,7 @@
 #include "utilities.h"
 #include "sceneStructs.h"
 #include "tiny_obj_loader.h"
+#include "bvh.h"
 
 using namespace std;
 using json = nlohmann::json;
@@ -24,14 +25,17 @@ private:
     int loadGeom(const json& geomData);
     int loadObj(const string& obj_file,const Transform& transform, bool usemtl = false);
     int loadCamera(const json& cameraData);
+    void Scene::buildBVH();
 
 public:
     Scene(string filename);
     ~Scene();
 
     std::vector<Geom> geoms;
+	BVH scene_bvh;
     std::vector<Material> materials;
     std::vector<Bitmap> bitmaps;
 	std::vector<TriangleMesh> trimeshes;
+    std::vector<BVH> tri_bvhs;
     RenderState state;
 };

@@ -1,15 +1,15 @@
 {
-    "name": "cornell",
+    "name": "earth",
     "sensor": {
         "type": "perspective",
         "fovy": 45,
-        "eye": [0.0, 5, 10.5],
-        "lookat": [0, 5, 0],
+        "eye": [-0.5, 5, 5.5],
+        "lookat": [-0.5, 5, 0],
         "up": [0, 1, 0],
         "focal": 0,
         "aperture": 0,
         "film": {
-            "resolution": [800, 800],
+            "resolution": [1024, 1024],
             "spp": 1024
         }
     },
@@ -19,65 +19,27 @@
     },
     "shape": [
         {
-            "type": "cube",
+            "type": "obj",
+            "filename": "models/area_light.obj",
+            "usemtl": false,
             "bsdf": 1,
-            "transform": {
-                "translate": [0, 10, 0],
-                "rotate": [0, 0, 0],
-                "scale": [3, 0.3, 3]
-            }
-        },
-        {
-            "type": "cube",
             "transform": {
                 "translate": [0, 0, 0],
                 "rotate": [0, 0, 0],
-                "scale": [10, 0.01, 10]
+                "scale": [2, 2, 2]
             }
         },
         {
-            "type": "cube",
+            "type": "obj",
+            "filename": "models/cornell_box.obj",
+            "usemtl": true,
             "transform": {
-                "translate": [0, 10, 0],
-                "rotate": [0, 0, 90],
-                "scale": [0.01, 10, 10]
-            }
-        },
-        {
-            "type": "cube",
-            "transform": {
-                "translate": [0, 5, -5],
-                "rotate": [0, 90, 0],
-                "scale": [0.01, 10, 10]
-            }
-        },
-        {
-            "type": "cube",
-            "bsdf": 2,
-            "transform": {
-                "translate": [-5, 5, 0],
+                "translate": [0, 0, 0],
                 "rotate": [0, 0, 0],
-                "scale": [0.01, 10, 10]
-            }
-        },
-        {
-            "type": "cube",
-            "bsdf": 3,
-            "transform": {
-                "translate": [5, 5, 0],
-                "rotate": [0, 0, 0],
-                "scale": [0.01, 10, 10]
-            }
-        },
-        {
-            "type": "sphere",
-            "bsdf": 4,
-            "transform": {
-                "translate": [-1, 4, -1],
-                "rotate": [0, 0, 0],
-                "scale": [3, 3, 3]
+                "scale": [1, 1, 1]
             }
         }
+
     ],
     "bsdf":[
         {
@@ -87,23 +49,7 @@
         {
             "type": "light",
             "rgb": [1, 1, 1],
-            "emission": 5
-        },
-        {
-            "type": "diffuse",
-            "rgb": [0.85, 0.35, 0.35]
-        },
-        {
-            "type": "diffuse",
-            "rgb": [0.35, 0.85, 0.35]
-        },
-        {
-            "type": "specular",
-            "rgb": [0.98, 0.98, 0.98]
-        }   
-    ]
-
-    
+            "emission": 10
+        }
+    ]   
 }
-
-
