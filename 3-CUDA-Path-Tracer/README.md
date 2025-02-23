@@ -11,4 +11,4 @@ CUDA Path Tracer
 - BVH: **Accelerate Data Structure**
   - **Binary Radix Tree construction**
   - **Parallel Tree Traversal**
-
+- Multiple Importance Sampling: **Efficient Monte Carlo Integrator**

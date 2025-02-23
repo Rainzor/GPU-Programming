@@ -14,9 +14,10 @@
 #include "scene.h"
 #include "glm/glm.hpp"
 #include "glm/gtx/norm.hpp"
-#include "utilities.h"
 #include "intersections.h"
 #include "sampler.h"
+#include "../utilities.h"
+
 
 #define ERRORCHECK 1
 
@@ -205,15 +206,6 @@ void resourceInit(Scene *scene) {
 			texDesc.normalizedCoords = 1;
 
 			cudaCreateTextureObject(&hst_texs[i], &resDesc, &texDesc, NULL);
-
-			//int numPixel = scene->bitmaps[i].width * scene->bitmaps[i].height;
-			//unsigned char* dev_pixels = NULL;
-			//cudaMalloc(&dev_pixels, numPixel * sizeof(unsigned char) * 4);
-			//cudaMemcpy(dev_pixels, scene->bitmaps[i].pixels, numPixel * sizeof(unsigned char) * 4, cudaMemcpyHostToDevice);
-
-			//cudaMemcpy(&(dev_bmp_ptr[i].pixels), &dev_pixels, sizeof(unsigned char*), cudaMemcpyHostToDevice);
-			//cudaMemcpy(&(dev_bmp_ptr[i].width), &(scene->bitmaps[i].width), sizeof(int), cudaMemcpyHostToDevice);
-			//cudaMemcpy(&(dev_bmp_ptr[i].height), &(scene->bitmaps[i].height), sizeof(int), cudaMemcpyHostToDevice);
 		}
 
 

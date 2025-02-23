@@ -66,52 +66,19 @@ include_directories(${GLM_INCLUDE_DIRS})
 set(JSON_ROOT_DIR "external")
 include_directories(${JSON_ROOT_DIR}/include/nlohmann)
 
-set(headers
-    src/main.h
-    src/image.h
-    src/sampler.h
-    src/intersections.h
-    src/glslUtility.hpp
-    src/pathtrace.h
-    src/scene.h
-    src/sceneStructs.h
-    src/preview.h
-    src/utilities.h
-    src/ImGui/imconfig.h
-	src/ImGui/imgui.h
-    src/ImGui/imconfig.h
-    src/ImGui/imgui_impl_glfw.h
-    src/ImGui/imgui_impl_opengl3.h 
-    src/ImGui/imgui_impl_opengl3_loader.h 
-    src/ImGui/imgui_internal.h 
-    src/ImGui/imstb_rectpack.h 
-    src/ImGui/imstb_textedit.h 
-    src/ImGui/imstb_truetype.h
+file(GLOB headers
+    src/*.h
+    src/core/*.h
+    src/ImGui/*.h
+)
 
-    src/tiny_obj_loader.h
-    src/bvh.h
-    )
-
-set(sources
-    src/main.cpp
-    src/stb.cpp
-    src/image.cpp
-    src/glslUtility.cpp
-    src/pathtrace.cu
-    src/scene.cpp
-    src/preview.cpp
-    src/utilities.cpp
-	
-    src/ImGui/imgui.cpp 
-    src/ImGui/imgui_demo.cpp 
-    src/ImGui/imgui_draw.cpp 
-    src/ImGui/imgui_impl_glfw.cpp 
-    src/ImGui/imgui_impl_opengl3.cpp 
-    src/ImGui/imgui_tables.cpp 
-    src/ImGui/imgui_widgets.cpp 
+file(GLOB sources
+    src/*.cpp
+    src/ImGui/*.cpp
+    src/core/*.cu
+    src/core/*.cpp
 
     src/tiny_obj_loader.cc
-    src/bvh.cu
     )
 
 list(SORT headers)

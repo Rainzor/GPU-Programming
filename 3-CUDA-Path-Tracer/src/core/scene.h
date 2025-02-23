@@ -8,9 +8,9 @@
 #include <string>
 #include <stb_image.h>
 #include "glm/glm.hpp"
-#include "utilities.h"
 #include "sceneStructs.h"
-#include "tiny_obj_loader.h"
+#include "../utilities.h"
+#include "../tiny_obj_loader.h"
 #include "bvh.h"
 
 using namespace std;
