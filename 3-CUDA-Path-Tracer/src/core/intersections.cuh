@@ -146,6 +146,7 @@ __device__ bool sphereIntersectionTest(Ray r, float tmax,
 	return true;
 }
 
+
 /**
 * Test intersection between a ray and a transformed triangle mesh.
 * 
@@ -154,6 +155,7 @@ __device__ bool sphereIntersectionTest(Ray r, float tmax,
 * @param  intersection      Output the record of the intersection.
 * @return                   Whether the intersection test was successful.
 */
+
 
 __device__ bool trimeshIntersectionTest(Ray r, float tmax,
 	Intersection& intersection, Triangle* triangles, BVHNode* bvh_nodes) {
@@ -186,9 +188,11 @@ __device__ bool trimeshIntersectionTest(Ray r, float tmax,
             if (node->isLeaf()) {
                 Triangle& tri = triangles[node->primId];
                 glm::vec3 baryPos;
+				float distance;
                 // Triangle-ray intersection check
-                if (glm::intersectRayTriangle(q.origin, q.direction, tri.v0, tri.v1, tri.v2, baryPos)) {
-                    float t_temp = baryPos.z;
+				//if (glm::intersectRayTriangle(q.origin, q.direction, tri.v0, tri.v1, tri.v2, baryPos, distance)) {
+				if (glm::intersectRayTriangle(q.origin, q.direction, tri.v0, tri.v1, tri.v2, baryPos)) {
+					float t_temp = baryPos.z;
                     if (t_temp < t && t_temp > 0) {
                         t = t_temp;
                         weight = glm::vec3(1 - baryPos.x - baryPos.y, baryPos.x, baryPos.y);

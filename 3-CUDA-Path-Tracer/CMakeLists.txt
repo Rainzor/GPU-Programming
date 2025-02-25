@@ -6,7 +6,7 @@ set_property(GLOBAL PROPERTY USE_FOLDERS ON)
 
 set(CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake" ${CMAKE_MODULE_PATH})
 
-# 设置输出目录为 ./install
+#  ./install
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/install/lib)
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/install/lib)
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/install/bin)
@@ -38,7 +38,8 @@ endif(WIN32)
 ########################################
 
 find_package(OpenGL REQUIRED)
-
+# find_package(glfw3 REQUIRED)
+# find_package(GLEW REQUIRED)
 if(UNIX)
     find_package(glfw3 REQUIRED)
     find_package(GLEW REQUIRED)
@@ -65,6 +66,8 @@ include_directories(${GLM_INCLUDE_DIRS})
 
 set(JSON_ROOT_DIR "external")
 include_directories(${JSON_ROOT_DIR}/include/nlohmann)
+
+# set(LIBRARIES glfw GLEW::GLEW ${OPENGL_gl_LIBRARY})
 
 include_directories(src)
 
