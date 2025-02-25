@@ -1,6 +1,6 @@
 #pragma once
 
-#include "intersections.h"
+#include "intersections.cuh"
 
 
 
@@ -92,28 +92,79 @@ glm::vec2 sampleUnitDiskConcentric(const glm::vec2& u){
  * You may need to change the parameter list for your purposes!
  */
 __host__ __device__
-Sample scatterRay(
-        const PathSegment & pathSegment,
+void scatterRay(
+        PathSegment& path,
+	    ShadowRay& shadow_ray,
         const Intersection & intersection,
         const Material *material,
 	    const glm::vec3& abedo,
-        thrust::default_random_engine &rng) {
+        const Light* lights,
+	    const int& num_lights,
+        const float& total_lights_weight,
+        thrust::default_random_engine& rng) {
     // ! Scatter the ray according to the type of material
     thrust::uniform_real_distribution<float> u01(0, 1);
-    Sample sample;
-    glm::vec3 direction = glm::vec3(0.f);
+	Ray ray_o = path.path_ray;
+    glm::vec3 BSDF;
+    glm::vec3 direct_i = glm::vec3(0.f);
+	glm::vec3 direct_o = ray_o.direction;
     if (material->type == MaterialType::SPECULAR){ // Perfect Reflection
-        direction = glm::reflect(pathSegment.ray.direction, intersection.surfaceNormal);
-        float cosTheta = glm::dot(direction, intersection.surfaceNormal);
-        sample.BSDF = abedo / cosTheta;
-        sample.pdf = 1.f;
+        direct_i = glm::reflect(direct_o, intersection.surfaceNormal);
+        float cosTheta = glm::dot(direct_i, intersection.surfaceNormal);
+        BSDF = abedo / cosTheta;
+        path.last_pdf = 1.f;
+		path.from_specular = true;
     } else if (material->type == MaterialType::DIFFUSE){ // Lambertian
-        direction = calculateRandomDirectionOnHemisphere(intersection.surfaceNormal, rng);
-        sample.BSDF = abedo / PI;
-        sample.pdf = glm::dot(direction, intersection.surfaceNormal) / PI;
+        direct_i = calculateRandomDirectionOnHemisphere(intersection.surfaceNormal, rng);
+        BSDF = abedo / PI;
+        path.last_pdf = glm::dot(direct_i, intersection.surfaceNormal) / PI;
+		path.from_specular = false;
+	}
+	else if (material->type == MaterialType::LIGHT) {// No scattering
+		assert(false);
     }
+    float cosTheta = glm::dot(direct_i, intersection.surfaceNormal);
+	path.path_ray.origin = getPointOnRay(path.path_ray, intersection.t);
+    path.path_ray.direction = direct_i;
+	glm::vec3 throughput_in = path.throughput;
+	path.throughput *= BSDF * cosTheta / path.last_pdf;
+	// Shadow ray: Next Event Estimation
+	if (!path.from_specular) {
+		float rand_lgts = u01(rng) * total_lights_weight;
+		int light_idx = 0;
+        for (int i = 0; i < num_lights; i++) {
+            rand_lgts -= lights[i].area * lights[i].scale * lights[i].emittance;
+            if (rand_lgts <= 0) {
+                light_idx = i;
+                break;
+            }
+        }
+        const glm::vec3& hit_point = path.path_ray.origin;
+		glm::vec3 light_pos, light_normal;
+		const Light& light = lights[light_idx];
+        light.sample(light_pos, light_normal, rng);
+		glm::vec3 dir_to_light = light_pos - hit_point;
+		float distance = glm::length(dir_to_light);
+		dir_to_light = dir_to_light / distance;
 
-    sample.ray.origin = pathSegment.ray.origin + pathSegment.ray.direction * intersection.t;
-    sample.ray.direction = glm::normalize(direction);
-    return sample;
+        shadow_ray.ray.origin = hit_point;
+		shadow_ray.ray.direction = dir_to_light;
+		shadow_ray.t_max = distance - EPSILON;
+
+		if (material->type == MaterialType::DIFFUSE) {
+			cosTheta = glm::dot(dir_to_light, intersection.surfaceNormal);
+			BSDF = abedo / PI;
+			float cosTheta_light = glm::dot(-dir_to_light, light_normal);
+			if (cosTheta > 0 && cosTheta_light > 0) {
+                float bsdf_pdf = cosTheta / PI;
+				float light_pdf = light.emittance * distance * distance / (cosTheta_light * total_lights_weight);
+				float mis_weight = powerHeuristic(light_pdf, bsdf_pdf);
+				shadow_ray.radiance_direct = throughput_in * BSDF * light.emittance * mis_weight / light_pdf;
+			}
+		}
+    }
+    else {
+		shadow_ray.radiance_direct = glm::vec3(0.f);
+        shadow_ray.t_max = -1.0f;
+    }
 }

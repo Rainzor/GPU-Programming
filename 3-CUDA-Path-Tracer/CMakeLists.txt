@@ -66,10 +66,15 @@ include_directories(${GLM_INCLUDE_DIRS})
 set(JSON_ROOT_DIR "external")
 include_directories(${JSON_ROOT_DIR}/include/nlohmann)
 
+include_directories(src)
+
 file(GLOB headers
     src/*.h
     src/core/*.h
+    src/core/*.cuh
     src/ImGui/*.h
+    src/utils/*.h
+    src/utils/*.hpp
 )
 
 file(GLOB sources
@@ -77,8 +82,7 @@ file(GLOB sources
     src/ImGui/*.cpp
     src/core/*.cu
     src/core/*.cpp
-
-    src/tiny_obj_loader.cc
+    src/utils/*.cpp
     )
 
 list(SORT headers)

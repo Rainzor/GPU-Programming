@@ -13,5 +13,5 @@ struct Ray {
  * Falls slightly short so that it doesn't intersect the object it's hitting.
  */
 __host__ __device__ inline glm::vec3 getPointOnRay(Ray r, float t) {
-    return r.origin + (t - 0.00001f) * glm::normalize(r.direction);
+    return r.origin + (t - 0.001f) * glm::normalize(r.direction);
 }

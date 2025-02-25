@@ -6,6 +6,7 @@
 
 
 Scene::Scene(string filename) {
+	this->lights_total_weight = 0;
     cout << "Reading scene from " << filename << " ..." << endl;
     cout << " " << endl;
 
@@ -31,6 +32,13 @@ Scene::Scene(string filename) {
             cout << "Error loading camera!" << endl;
 			throw;
         }
+		Material default_m;
+		default_m.type = MaterialType::DIFFUSE;
+		default_m.texture.color = glm::vec3(1.0f);
+		default_m.emittance = 0.0f;
+		default_m.indexOfRefraction = 1.0f;
+		materials.push_back(default_m);
+
         for (const auto& material : sceneData["bsdf"]) {
 			if (loadMaterial(material) == -1) {
 				cout << "Error loading material!" << endl;
@@ -125,7 +133,7 @@ int Scene::loadBitmap(const string& bitmapPath){
 }
 
 int Scene::loadMaterial(const json& materialData) {
-	cout << endl << "Creating new material " << materials.size() << "..." << endl;
+cout << endl << "Creating new material " << materials.size() << "..." << endl;
     Material newMaterial;
     string type = materialData["type"];
 
@@ -190,20 +198,30 @@ int Scene::loadGeom(const json& shapeData) {
 	newGeom.transform.inverseTransform = glm::inverse(newGeom.transform.transform);
 	newGeom.transform.invTranspose = glm::inverseTranspose(newGeom.transform.transform);
 
-	string type = shapeData["type"];
-	if (type == "sphere") {
+	// Link material (bsdf)
+	if (shapeData.contains("bsdf"))
+		newGeom.materialId = shapeData["bsdf"] + 1; // Offset by 1 to account for default material
+	else {
+		// Default material
+		newGeom.materialId = 0;
+	}
+
+	auto material_type = materials[newGeom.materialId].type;
+
+	string shape_type = shapeData["type"];
+	if (shape_type == "sphere") {
 		cout << endl << "Creating new sphere..." << endl;
 		newGeom.type = Primitive::SPHERE;
 	}
-	else if (type == "cube") {
+	else if (shape_type == "cube") {
 		cout << endl <<"Creating new cube..." << endl;
 		newGeom.type = Primitive::CUBE;
 	}
-	else if (type == "obj") {
+	else if (shape_type == "obj") {
 		cout << endl<< "Creating new Triangle Mesh..." << endl;
 		bool usemtl = false;
 		if (shapeData.contains("usemtl")) {
-			usemtl = shapeData["usemtl"];
+			usemtl = shapeData["usemtl"] && material_type != MaterialType::LIGHT;
 		}
 		newGeom.type = Primitive::TRIANGLE;
 		if (shapeData.contains("filename")) {
@@ -216,7 +234,24 @@ int Scene::loadGeom(const json& shapeData) {
 				return 1; 
 			}
 			newGeom.trimeshId = trimeshes.size() - 1;
-			//newGeom.bbox = bvhs[newGeom.trimeshId].bvh_nodes[0].bbox;
+
+			if(material_type == MaterialType::LIGHT){
+				// Create light
+				cout << endl << "Creating new area light..." << endl;
+				Light newLight;
+				newLight.type = LightType::Area;
+				newLight.triangles = trimeshes.back().triangles;
+				newLight.num = trimeshes.back().num;
+				newLight.area = 0;
+				for(int i = 0; i < newLight.num; i++){
+					newLight.area += newLight.triangles[i].getArea();
+				}
+				newLight.scale = newGeom.transform.scale.x * newGeom.transform.scale.y * newGeom.transform.scale.z;
+				newLight.emittance = materials[newGeom.materialId].emittance;
+				lights.push_back(newLight);
+				lights_total_weight += newLight.area * materials[newGeom.materialId].emittance * newLight.scale;
+				newGeom.lightId = lights.size() - 1;
+			}
 		}
 		else {
 			cout << endl << "No filename provided for obj shape!" << endl;
@@ -224,20 +259,11 @@ int Scene::loadGeom(const json& shapeData) {
 		}
 	}
 	else {
-		cout << endl << "Unknown shape type: " << type << endl;
+		cout << endl << "Unknown shape type: " << shape_type << endl;
 		return -1;
 	}
 
-	// Link material (bsdf)
-	if (shapeData.contains("bsdf"))
-		newGeom.materialId = shapeData["bsdf"];
-	else {
-		// Default material
-		newGeom.materialId = 0;
-	}
 	cout << "Connecting Geom to Material " << newGeom.materialId << "..." << endl;
-
-
 	geoms.push_back(newGeom);
 	return 1;
 }

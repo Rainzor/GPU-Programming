@@ -7,7 +7,7 @@
 #include <string>
 #include <cstdlib>
 #include <cstring>
-#include "glslUtility.hpp"
+#include "glslUtility.h"
 
 using std::ios;
 

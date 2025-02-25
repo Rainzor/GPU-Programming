@@ -1,0 +1,13 @@
+{
+    "files.associations": {
+        "*m": "matlab",
+        ".cu": "cuda",
+        "cstring": "cpp",
+        "algorithm": "cpp",
+        "iostream": "cpp",
+        "string": "cpp",
+        "iosfwd": "cpp",
+        "cstdio": "cpp",
+        "vector": "cpp"
+    }
+}

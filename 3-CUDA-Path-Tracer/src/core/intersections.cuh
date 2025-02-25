@@ -3,7 +3,7 @@
 #include <glm/glm.hpp>
 #include <glm/gtx/intersect.hpp>
 #include "sceneStructs.h"
-#include "../utilities.h"
+#include "utils/utilities.h"
 
 /**
  * Handy-dandy hash function that provides seeds for random number generation.
@@ -32,7 +32,7 @@ __host__ __device__ glm::vec3 multiplyMV(glm::mat4 m, glm::vec4 v) {
  * @param Intersection       Output the record of the intersection.
  * @return                   Whether the intersection test was successful.
  */
-__host__ __device__ bool boxIntersectionTest(Ray r, float tmax,
+__device__ bool boxIntersectionTest(Ray r, float tmax,
         Intersection & intersection) {
 	intersection.t = -1;
 	glm::vec3 intersectionPoint;
@@ -89,7 +89,7 @@ __host__ __device__ bool boxIntersectionTest(Ray r, float tmax,
  * @param  outside           Whether the ray came from outside the sphere.
  * @return                   Whether the intersection test was successful.
  */
-__host__ __device__ bool sphereIntersectionTest(Ray r, float tmax,
+__device__ bool sphereIntersectionTest(Ray r, float tmax,
         Intersection& intersection) {
 	glm::vec3 intersectionPoint;
     glm::vec3 normal;
@@ -155,7 +155,7 @@ __host__ __device__ bool sphereIntersectionTest(Ray r, float tmax,
 * @return                   Whether the intersection test was successful.
 */
 
-__host__ __device__ bool trimeshIntersectionTest(Ray r, float tmax,
+__device__ bool trimeshIntersectionTest(Ray r, float tmax,
 	Intersection& intersection, Triangle* triangles, BVHNode* bvh_nodes) {
 	glm::vec3 intersectionPoint;
 	glm::vec3 normal;
@@ -249,7 +249,7 @@ __host__ __device__ bool trimeshIntersectionTest(Ray r, float tmax,
 
 
 
-__host__ __device__ bool worldIntersectionTest(
+__device__ bool worldIntersectionTest(
     Ray ray, float tmax,
     Intersection& intersection,
 	GeomGPU* geoms,
@@ -313,7 +313,7 @@ __host__ __device__ bool worldIntersectionTest(
 					normal = glm::normalize(multiplyMV(geom.transform.invTranspose, glm::vec4(test_intersection.surfaceNormal, 0.0f)));
 					test_intersection.t = glm::length(intersect_point - ray.origin);
 					test_intersection.surfaceNormal = normal;
-					test_intersection.materialId = geom.materialId;
+					test_intersection.material_id = geom.material_id;
 					// Compute the minimum t from the intersection tests to determine 
 					// what scene geometry object was hit first.
 					if (test_intersection.t < final_t) {

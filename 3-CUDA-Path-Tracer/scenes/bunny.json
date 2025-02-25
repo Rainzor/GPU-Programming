@@ -22,7 +22,7 @@
             "type": "obj",
             "filename": "models/area_light.obj",
             "usemtl": false,
-            "bsdf": 1,
+            "bsdf": 0,
             "transform": {
                 "translate": [0, 0, 0],
                 "rotate": [0, 0, 0],
@@ -43,13 +43,9 @@
     ],
     "bsdf":[
         {
-            "type": "diffuse",
-            "rgb": [0.98, 0.98, 0.98]
-        },
-        {
             "type": "light",
             "rgb": [1, 1, 1],
-            "emission": 10
+            "emission": 15
         }
     ]   
 }

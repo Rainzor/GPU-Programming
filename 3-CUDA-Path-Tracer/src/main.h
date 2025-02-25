@@ -8,7 +8,6 @@
 #include <fstream>
 #include <glm/glm.hpp>
 #include <glm/gtx/transform.hpp>
-#include "glslUtility.hpp"
 #include <iostream>
 #include <sstream>
 #include <stdlib.h>
@@ -17,8 +16,8 @@
 #include "core/sceneStructs.h"
 #include "core/pathtrace.h"
 #include "core/scene.h"
-
-#include "utilities.h"
+#include "utils/glslUtility.h"
+#include "utils/utilities.h"
 #include "image.h"
 
 using namespace std;

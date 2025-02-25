@@ -16,6 +16,7 @@
 #include "camera.h"
 #include "shape.h"
 #include "bvh.h"
+#include "light.h"
 
 
 #define BACKGROUND_COLOR (glm::vec3(0.1f))
@@ -26,8 +27,8 @@ struct GeomGPU {
     enum Primitive type;
     Triangle* dev_triangles;
     BVHNode* dev_bvh_nodes;
-    //Material* dev_material;
-	size_t materialId;
+	int light_id;
+    size_t material_id;
     Transform transform;
 };
 
@@ -40,11 +41,19 @@ struct RenderState {
 };
 
 struct PathSegment {
-    Ray ray;
+    Ray path_ray;
     glm::vec3 color;
 	glm::vec3 throughput;
-    int pixelIndex;
+    int pixel_id;
     int remainingBounces;
+    float last_pdf;
+	bool from_specular;
+};
+
+struct ShadowRay {
+	Ray ray;
+	float t_max;
+	glm::vec3 radiance_direct;
 };
 
 // Use with a corresponding PathSegment to do:
@@ -55,12 +64,12 @@ struct Intersection {
     glm::vec3 surfaceNormal;
     glm::vec2 uv;
 	//Material* material;
-	size_t materialId;
+	size_t material_id;
     bool outside;
 };
 
-struct Sample {
-    float pdf;
-    glm::vec3 BSDF;
-    Ray ray;
-};
+//struct Sample {
+//    float pdf;
+//    glm::vec3 BSDF;
+//    Ray ray;
+//};
