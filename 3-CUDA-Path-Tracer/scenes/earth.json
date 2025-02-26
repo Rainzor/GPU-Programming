@@ -21,7 +21,7 @@
         {
             "type": "light",
             "rgb": [1, 1, 1],
-            "emission": 5
+            "emission": 10
         },
         {
             "type": "diffuse",
@@ -38,12 +38,14 @@
     ],
     "shape": [
         {
-            "type": "cube",
+            "type": "obj",
+            "filename": "models/area_light.obj",
+            "usemtl": false,
             "bsdf": 0,
             "transform": {
-                "translate": [0, 10, 0],
+                "translate": [-0.5, -1, 10],
                 "rotate": [0, 0, 0],
-                "scale": [3, 0.3, 3]
+                "scale": [2, 1, 2]
             }
         },
         {

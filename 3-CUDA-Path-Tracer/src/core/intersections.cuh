@@ -179,6 +179,7 @@ __device__ bool trimeshIntersectionTest(Ray r, float tmax,
     }
 	stack_size ++;
 	*(++stackPtr) = &bvh_nodes[0];
+	int triangle_id = -1;
 	while(stack_size > 0 && stack_size < STACK_SIZE) {
 		BVHNode* node = *(stackPtr--); // pop
 		stack_size--;
@@ -195,6 +196,7 @@ __device__ bool trimeshIntersectionTest(Ray r, float tmax,
 					float t_temp = baryPos.z;
                     if (t_temp < t && t_temp > 0) {
                         t = t_temp;
+						triangle_id = node->primId;
                         weight = glm::vec3(1 - baryPos.x - baryPos.y, baryPos.x, baryPos.y);
                     }
                 }
@@ -235,16 +237,17 @@ __device__ bool trimeshIntersectionTest(Ray r, float tmax,
         }
 	}
 
-	if (t < tmax) {
-		normal = weight.x * triangles[0].n0 + 
-                 weight.y * triangles[0].n1 + 
-                 weight.z * triangles[0].n2;
+	if (t < tmax&& triangle_id >=0) {
+		normal = weight.x * triangles[triangle_id].n0 +
+                 weight.y * triangles[triangle_id].n1 +
+                 weight.z * triangles[triangle_id].n2;
 		intersection.surfaceNormal = normal;
 		intersection.t = t;
 
-		intersection.uv = weight.x * triangles[0].uv0 +
-			              weight.y * triangles[0].uv1 +
-			              weight.z * triangles[0].uv2;
+		intersection.uv = weight.x * triangles[triangle_id].uv0 +
+			              weight.y * triangles[triangle_id].uv1 +
+			              weight.z * triangles[triangle_id].uv2;
+		intersection.uv.y = 1 - intersection.uv.y;
 		intersection.outside = glm::dot(q.direction, normal) < 0;
 		return true;
 	}

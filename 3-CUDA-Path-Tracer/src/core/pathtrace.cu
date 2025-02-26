@@ -62,30 +62,6 @@ struct is_valid{
 	}
 };
 
-
-//Kernel that writes the image to the OpenGL PBO directly.
-__global__ void sendImageToPBO(uchar4* pbo, glm::ivec2 resolution,
-	int iter, glm::vec3* image) {
-	int x = (blockIdx.x * blockDim.x) + threadIdx.x;
-	int y = (blockIdx.y * blockDim.y) + threadIdx.y;
-
-	if (x < resolution.x && y < resolution.y) {
-		int index = x + (y * resolution.x);
-		glm::vec3 pix = image[index];
-
-		glm::ivec3 color;
-		color.x = glm::clamp((int)(pix.x / iter * 255.0), 0, 255);
-		color.y = glm::clamp((int)(pix.y / iter * 255.0), 0, 255);
-		color.z = glm::clamp((int)(pix.z / iter * 255.0), 0, 255);
-
-		// Each thread writes one pixel location in the texture (textel)
-		pbo[index].w = 0;
-		pbo[index].x = color.x;
-		pbo[index].y = color.y;
-		pbo[index].z = color.z;
-	}
-}
-
 static Scene* hst_scene = NULL;
 static GuiDataContainer* guiData = NULL;
 static glm::vec3* dev_image = NULL;
@@ -135,7 +111,6 @@ void resourceInit(Scene *scene) {
 	cudaMemcpy(dev_materials, scene->materials.data(), scene->materials.size() * sizeof(Material), cudaMemcpyHostToDevice);
 
 	if (!scene->trimeshes.empty()) {
-		//cudaMalloc((void**)&dev_trimeshes, scene->trimeshes.size() * sizeof(TriangleMesh));
 		cudaMalloc((void**)&dev_trimesh_ptr, scene->trimeshes.size() * sizeof(Triangle*));
 		for (int i = 0; i < scene->trimeshes.size(); i++)
 		{
@@ -144,7 +119,7 @@ void resourceInit(Scene *scene) {
 			cudaMalloc(&(host_trimesh_ptr), numTriangles * sizeof(Triangle));
 			cudaMemcpy(host_trimesh_ptr, scene->trimeshes[i].triangles, numTriangles * sizeof(Triangle), cudaMemcpyHostToDevice);
 
-			cudaMemcpy((void**)&(dev_trimesh_ptr[i]), &host_trimesh_ptr, sizeof(unsigned char*), cudaMemcpyHostToDevice);
+			cudaMemcpy((void**)&(dev_trimesh_ptr[i]), &host_trimesh_ptr, sizeof(Triangle*), cudaMemcpyHostToDevice);
 		}
 	}
 	else {
@@ -272,14 +247,18 @@ void resourceFree() {
 
 	if (dev_trimesh_ptr != NULL) {
 		for (int i = 0; i < hst_scene->trimeshes.size(); i++) {
-			cudaFree(dev_trimesh_ptr[i]);
+			Triangle* host_trimesh_ptr = NULL;
+			cudaMemcpy(&host_trimesh_ptr, &(dev_trimesh_ptr[i]), sizeof(Triangle*), cudaMemcpyDeviceToHost);
+			cudaFree(host_trimesh_ptr);
 		}
 		cudaFree(dev_trimesh_ptr);
 	}
 
 	if (dev_tribvh_ptr != NULL) {
 		for (int i = 0; i < hst_scene->tri_bvhs.size(); i++) {
-			cudaFree(dev_tribvh_ptr[i]);
+			BVHNode* host_tribvh_ptr = NULL;
+			cudaMemcpy(&host_tribvh_ptr, &(dev_tribvh_ptr[i]), sizeof(BVHNode*), cudaMemcpyDeviceToHost);
+			cudaFree(host_tribvh_ptr);
 		}
 		cudaFree(dev_tribvh_ptr);
 	}
@@ -364,24 +343,27 @@ __global__ void computeIntersections(
 {
 	int path_index = blockIdx.x * blockDim.x + threadIdx.x;
 
-	if (path_index < num_paths)
-	{
-		Intersection test_intersection;
-		bool outside;
-		bool anyhit = worldIntersectionTest(
-			pathSegments[path_index].path_ray,
-			FLT_MAX,
-			test_intersection,
-			geoms,
-			geomBVHs);
+	if (path_index >= num_paths)
+		return;
 
-		if (!anyhit){
-			intersections[path_index].t = -1.0f;
-		} else {
-			intersections[path_index] = test_intersection;
-		}
+	Intersection test_intersection;
+	bool outside;
+	bool anyhit = worldIntersectionTest(
+		pathSegments[path_index].path_ray,
+		FLT_MAX,
+		test_intersection,
+		geoms,
+		geomBVHs);
+
+	if (!anyhit) {
+		intersections[path_index].t = -1.0f;
 	}
+	else {
+		intersections[path_index] = test_intersection;
+	}
+	pathSegments[path_index].remainingBounces--;
 }
+
 
 /**
 * Compute the color of the ray after intersection with the scene.
@@ -402,78 +384,84 @@ __global__ void shadeMaterialMIS(
 )
 {
 	int idx = blockIdx.x * blockDim.x + threadIdx.x;
-	if (idx < num_paths && pathSegments[idx].remainingBounces > 0)
-	{	
-		Intersection intersection = shadeableIntersections[idx];
-		PathSegment& cur_path = pathSegments[idx];
-		ShadowRay& shadow_ray = shadowRays[idx];
-		if (intersection.t > 0.0f) { // if the intersection exists...
-		  // Set up the RNG
-		  // LOOK: this is how you use thrust's RNG! Please look at
-		  // makeSeededRandomEngine as well.
-			thrust::default_random_engine rng = makeSeededRandomEngine(iter, idx, 0);
-			thrust::uniform_real_distribution<float> u01(0, 1);
+	if (idx >= num_paths && pathSegments[idx].remainingBounces < 0)
+		return;
 
-			Material* material = &materials[intersection.material_id];
+	Intersection intersection = shadeableIntersections[idx];
+	PathSegment& cur_path = pathSegments[idx];
+	ShadowRay& shadow_ray = shadowRays[idx];
+	shadow_ray.radiance_direct = glm::vec3(0);
+	shadow_ray.t_max = -1.0f;
 
-			Texture& texture = material->texture;
-			glm::vec3 material_color;
+	if (intersection.t <= 0.0f) {
+		cur_path.color += BACKGROUND_COLOR * cur_path.throughput;
+		cur_path.remainingBounces = 0;
+		return;
+	}
 
-			if (texture.type == TextureType::BITMAP)
-			{
-				//materialColor = getPixel(bitmaps[texture.bitmapId], intersection.uv);
+	thrust::default_random_engine rng = makeSeededRandomEngine(iter, idx, depth);
+	thrust::uniform_real_distribution<float> u01(0, 1);
 
-				float4 texColor = tex2D<float4>(texObjs[texture.bitmapId], intersection.uv.x, intersection.uv.y);
-				material_color = glm::vec3(texColor.x, texColor.y, texColor.z);
-			}
-			else {
-				material_color = texture.color;
-			}
+	Material* material = &materials[intersection.material_id];
 
-			// If the material indicates that the object was a light, "light" the ray
-			if (material->type == MaterialType::LIGHT) {
+	Texture& texture = material->texture;
+	glm::vec3 material_color;
+
+	if (texture.type == TextureType::BITMAP)
+	{
+		//materialColor = getPixel(bitmaps[texture.bitmapId], intersection.uv);
+		
+		float4 texColor = tex2D<float4>(texObjs[texture.bitmapId], intersection.uv.x, intersection.uv.y);
+		material_color = glm::vec3(texColor.x, texColor.y, texColor.z);
+	}
+	else {
+		material_color = texture.color;
+	}
+
+	// If the material indicates that the object was a light, "light" the ray
+	if (material->type == MaterialType::LIGHT) {
 #if USE_NEE
-				if (depth == 0 || cur_path.from_specular) {// mis weight is 1
-					cur_path.color += cur_path.throughput * material->emittance;
-					cur_path.remainingBounces = 0;
-					shadow_ray.radiance_direct = glm::vec3(0);
-					shadow_ray.t_max = -1.0f;
-					return;
-				}
-
-				glm::vec3 light_point = getPointOnRay(cur_path.path_ray, intersection.t);
-				glm::vec3 light_normal = intersection.surfaceNormal;
-				float cosine_term = glm::abs(glm::dot(light_normal, -cur_path.path_ray.direction));
-				float distance_to_light_squared = intersection.t * intersection.t;
-				float light_pdf = distance_to_light_squared * material->emittance / (cosine_term * total_lights_weight);
-				if (light_pdf <= 0)
-					return;
-				float mis_weight = powerHeuristic(cur_path.last_pdf, light_pdf);
-				cur_path.color += cur_path.throughput * material->emittance * mis_weight;
-				cur_path.remainingBounces = 0;
-				shadow_ray.radiance_direct = glm::vec3(0);
-				shadow_ray.t_max = -1.0f;
-				return;
-#else 
-				cur_path.color += cur_path.throughput * material->emittance;
-				cur_path.remainingBounces = 0;// terminate the path
-#endif
-			}else if (cur_path.remainingBounces > 0) {
-				scatterRay(cur_path, shadow_ray, intersection, material, material_color, lights,num_lights, total_lights_weight,  rng);
-				//float cosineterm = glm::dot(sample.ray.direction, intersection.surfaceNormal);
-
-				//cur_path.path_ray = sample.ray;
-				//cur_path.last_pdf = sample.pdf;
-				//cur_path.throughput *= sample.BSDF * cosineterm / sample.pdf;
-				cur_path.remainingBounces--;
-			}
-		}
-		else {// If there was no intersection, return background color
-			cur_path.color += BACKGROUND_COLOR * cur_path.throughput;
+		if (depth == 0 || cur_path.from_specular) {// mis weight is 1
+			cur_path.color += cur_path.throughput * material->emittance;
 			cur_path.remainingBounces = 0;
 			shadow_ray.radiance_direct = glm::vec3(0);
 			shadow_ray.t_max = -1.0f;
+			return;
 		}
+
+		glm::vec3 light_point = getPointOnRay(cur_path.path_ray, intersection.t);
+		glm::vec3 light_normal = intersection.surfaceNormal;
+		float cosine_term = glm::abs(glm::dot(light_normal, -cur_path.path_ray.direction));
+		float distance_to_light_squared = intersection.t * intersection.t;
+		float light_pdf = distance_to_light_squared * material->emittance / (cosine_term * total_lights_weight);
+		if (light_pdf <= 0)
+			return;
+		float mis_weight = powerHeuristic(cur_path.last_pdf, light_pdf);
+		cur_path.color += cur_path.throughput * material->emittance * mis_weight;
+		cur_path.remainingBounces = 0;
+		shadow_ray.radiance_direct = glm::vec3(0);
+		shadow_ray.t_max = -1.0f;
+		return;
+#else 
+		cur_path.color += cur_path.throughput * material->emittance;
+		cur_path.remainingBounces = 0;// terminate the path
+#endif
+	}
+	
+	// Russian Roulette
+	if (cur_path.remainingBounces > 1 && depth > 8) {
+		glm::vec3 throughput_albedo = cur_path.throughput * material_color;
+		float survival_probability = MAX(throughput_albedo.x, MAX(throughput_albedo.y, throughput_albedo.z));
+		if (u01(rng) > survival_probability) {
+			cur_path.remainingBounces = 0;
+			return;
+		}
+		cur_path.throughput /= survival_probability;
+	}
+
+	// At least one bounce remaining
+	if(pathSegments[idx].remainingBounces > 0){
+		scatterRay(cur_path, shadow_ray, intersection, material, material_color, lights, num_lights, total_lights_weight, rng);
 	}
 }
 
@@ -487,22 +475,22 @@ __global__ void shadowIntersection(
 )
 {
 	int idx = blockIdx.x * blockDim.x + threadIdx.x;
-	if (idx < num_paths)
-	{
-		ShadowRay& shadow_ray = shadowRays[idx];
-		PathSegment& cur_path = pathSegments[idx];
-		if (shadow_ray.t_max > 0.0f) {
-			Intersection shadow_intersection;
-			bool outside;
-			bool anyhit = worldIntersectionTest(
-				shadow_ray.ray,
-				shadow_ray.t_max,
-				shadow_intersection,
-				geoms,
-				geomBVHs);
-			if (!anyhit) {// no blocking object
-				cur_path.color += shadow_ray.radiance_direct;
-			}
+	if (idx >= num_paths)
+		return;
+
+	ShadowRay& shadow_ray = shadowRays[idx];
+	PathSegment& cur_path = pathSegments[idx];
+	if (shadow_ray.t_max > 0.0f) {
+		Intersection shadow_intersection;
+		bool outside;
+		bool anyhit = worldIntersectionTest(
+			shadow_ray.ray,
+			shadow_ray.t_max,
+			shadow_intersection,
+			geoms,
+			geomBVHs);
+		if (!anyhit) {// no blocking object
+			cur_path.color += shadow_ray.radiance_direct;
 		}
 	}
 }
@@ -516,6 +504,44 @@ __global__ void finalGather(int nPaths, glm::vec3* image, PathSegment* iteration
 	{
 		PathSegment iterationPath = iterationPaths[index];
 		image[iterationPath.pixel_id] += iterationPath.color;
+	}
+}
+
+//Kernel that writes the image to the OpenGL PBO directly.
+__global__ void sendImageToPBO(uchar4* pbo, glm::ivec2 resolution,
+	int iter, glm::vec3* image) {
+	int x = (blockIdx.x * blockDim.x) + threadIdx.x;
+	int y = (blockIdx.y * blockDim.y) + threadIdx.y;
+
+	if (x < resolution.x && y < resolution.y) {
+		int index = x + (y * resolution.x);
+		glm::vec3 pix = image[index];
+
+		glm::ivec3 color;
+		color.x = glm::clamp((int)(pix.x / iter * 255.0), 0, 255);
+		color.y = glm::clamp((int)(pix.y / iter * 255.0), 0, 255);
+		color.z = glm::clamp((int)(pix.z / iter * 255.0), 0, 255);
+
+		// Each thread writes one pixel location in the texture (textel)
+		pbo[index].w = 0;
+		pbo[index].x = color.x;
+		pbo[index].y = color.y;
+		pbo[index].z = color.z;
+	}
+}
+
+__global__ void testTextureMapping(
+	cudaTextureObject_t* texObjs, int texs_idx, int width, int height, glm::vec3* image){
+	int x = (blockIdx.x * blockDim.x) + threadIdx.x;
+	int y = (blockIdx.y * blockDim.y) + threadIdx.y;
+	if (x < width && y < height) {
+		int index = x + (y * width);
+		float u = (float)x / (float)width;
+		float v = (float)y / (float)height;
+		{
+			float4 texColor = tex2D<float4>(texObjs[texs_idx], 1-u, v);
+			image[index] += glm::vec3(texColor.x, texColor.y, texColor.z);
+		}
 	}
 }
 
@@ -656,6 +682,10 @@ void pathtrace(uchar4* pbo, int frame, int iter) {
 	finalGather << <numBlocksPixels, blockSize1d >> > (pixelcount, dev_image, dev_paths);
 
 	//-------------------------------------------------------------------------
+
+	//// Test Texture Mapping
+	//testTextureMapping << <blocksPerGrid2d, blockSize2d >> > (dev_texs, 0, cam.resolution.x, cam.resolution.y, dev_image);
+
 
 	// Send results to OpenGL buffer for rendering
 	sendImageToPBO << <blocksPerGrid2d, blockSize2d >> > (pbo, cam.resolution, iter, dev_image);

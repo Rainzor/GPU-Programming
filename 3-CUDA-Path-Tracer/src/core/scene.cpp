@@ -297,17 +297,21 @@ int Scene::loadObj(const string& obj_file,const Transform& trans, bool usemtl) {
 		Material newMaterial;
 		tinyobj::material_t &mat = to_materials[i];
 		newMaterial.type = MaterialType::DIFFUSE;
-		newMaterial.texture.color = glm::vec3(mat.diffuse[0], mat.diffuse[1], mat.diffuse[2]);
 		newMaterial.indexOfRefraction = mat.ior;
         if (mat.diffuse_texname != "") {
 			newMaterial.texture.type = TextureType::BITMAP;
+			newMaterial.texture.color = glm::vec3(1.0f);
 			string bitmapPath = base_dir + "/" + mat.diffuse_texname;
 			if (loadBitmap(bitmapPath) == 1)
 				newMaterial.texture.bitmapId = bitmaps.size() - 1;
             else {
                 return -1;
             }
-        }
+		}
+		else {
+			newMaterial.texture.color = glm::vec3(mat.diffuse[0], mat.diffuse[1], mat.diffuse[2]);
+			newMaterial.texture.type = TextureType::RGB;
+		}
 		this->materials.push_back(newMaterial);
     }
 

@@ -24,6 +24,16 @@
             "usemtl": false,
             "bsdf": 0,
             "transform": {
+                "translate": [0, 0, 2],
+                "rotate": [0, 0, 0],
+                "scale": [2, 1, 2]
+            }
+        },
+        {
+            "type": "obj",
+            "filename": "models/spot.obj",
+            "usemtl": true,
+            "transform": {
                 "translate": [0, 0, 0],
                 "rotate": [0, 0, 0],
                 "scale": [1, 1, 1]
@@ -31,7 +41,7 @@
         },
         {
             "type": "obj",
-            "filename": "models/bunny.obj",
+            "filename": "models/cornell_box.obj",
             "usemtl": true,
             "transform": {
                 "translate": [0, 0, 0],
@@ -45,7 +55,7 @@
         {
             "type": "light",
             "rgb": [1, 1, 1],
-            "emission": 15
+            "emission": 10
         }
     ]   
 }
