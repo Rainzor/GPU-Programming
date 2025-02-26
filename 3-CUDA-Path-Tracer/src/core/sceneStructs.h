@@ -19,7 +19,7 @@
 #include "light.h"
 
 
-#define BACKGROUND_COLOR (glm::vec3(0.5f))
+#define BACKGROUND_COLOR (glm::vec3(0.2f))
 #define MIN(a,b) (((a) < (b)) ? (a) : (b))
 #define MAX(a,b) (((a) > (b)) ? (a) : (b))
 

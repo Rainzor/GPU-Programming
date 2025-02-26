@@ -1,10 +1,10 @@
 {
-    "name": "earth",
+    "name": "bunny",
     "sensor": {
         "type": "perspective",
         "fovy": 45,
-        "eye": [0, 5, 5],
-        "lookat": [0, 5, 0],
+        "eye": [0, 5.5, 6],
+        "lookat": [0, 5.5, 0],
         "up": [0, 1, 0],
         "focal": 0,
         "aperture": 0,
@@ -24,6 +24,16 @@
             "usemtl": false,
             "bsdf": 0,
             "transform": {
+                "translate": [-0.5, 0, 1.5],
+                "rotate": [0, 0, 0],
+                "scale": [2, 1, 2]
+            }
+        },
+        {
+            "type": "obj",
+            "filename": "models/bunny.obj",
+            "usemtl": true,
+            "transform": {
                 "translate": [0, 0, 0],
                 "rotate": [0, 0, 0],
                 "scale": [1, 1, 1]
@@ -31,8 +41,9 @@
         },
         {
             "type": "obj",
-            "filename": "models/bunny.obj",
-            "usemtl": true,
+            "filename": "models/mirror.obj",
+            "usemtl": false,
+            "bsdf": 1,
             "transform": {
                 "translate": [0, 0, 0],
                 "rotate": [0, 0, 0],
@@ -45,7 +56,11 @@
         {
             "type": "light",
             "rgb": [1, 1, 1],
-            "emission": 15
+            "emission": 10
+        },
+        {
+            "type": "specular",
+            "rgb": [0.85, 0.85, 0.85]
         }
     ]   
 }

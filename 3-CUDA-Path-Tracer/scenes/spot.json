@@ -1,5 +1,5 @@
 {
-    "name": "earth",
+    "name": "spot",
     "sensor": {
         "type": "perspective",
         "fovy": 45,
