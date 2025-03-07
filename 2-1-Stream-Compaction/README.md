@@ -180,8 +180,9 @@ The basic idea is simple. We divide the large array into blocks that each can be
 In more detail, let *N* be the number of elements in the input array, and *B* be the number of elements processed in a block. We allocate *N*/*B* thread blocks of *B*/2 threads each. We use the scan algorithm of the previous sections to scan each block `i` independently, storing the resulting scans to sequential locations of the output array. We make one minor modification to the scan algorithm. Before zeroing the last element of block `i` , we store the value to an auxiliary array `SUMS`. We then scan `SUMS` in the same manner, writing the result to an array `INCR`. We then add `INCR[i]` to all elements of block `i` using a simple uniform add kernel invoked on *N*/*B* thread blocks of *B*/2 threads each. 
 
 If the size of the auxiliary array `SUMS` is larger than the block's size *B*, we can apply the *divide & conquer* approach again for `SUMS` recursively. In the worst case, the amount of wasted computation and time cost are:
+
 $$
-W(n) =\sum_{d=1}^{\ln n/ \ln B} B^d= O(n),\quad\\
+W(n) =\sum_{d=1}^{\ln n/ \ln B} B^d= O(n),\quad
 T(n) = O(\log n)
 $$
 where *B* is typically a constant value.
