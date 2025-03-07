@@ -185,6 +185,7 @@ $$
 W(n) =\sum_{d=1}^{\ln n/ \ln B} B^d= O(n),\quad
 T(n) = O(\log n)
 $$
+
 where *B* is typically a constant value.
 
 #### Shared Memory
